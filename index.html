@@ -1,0 +1,2401 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Thống Kê Tuyển Sinh Lớp 10</title>
+  <meta name="description" content="Web App thống kê dữ liệu tuyển sinh lớp 10 - Phân tích kết quả thi, báo cáo theo giáo viên, lớp, toàn trường" />
+  <link rel="stylesheet" href="style.css" />
+  <!-- React 18 -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- Babel Standalone for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- SheetJS with Styling (xlsx-js-style) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+  <!-- html2pdf for PDF export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body class="light-theme">
+  <div id="root"></div>
+
+  <script type="text/babel" data-presets="react">
+// ================================================================
+// 1. UTILITY: EXCEL TEMPLATES
+// ================================================================
+const ExcelTemplates = {
+  exportStudentTemplate() {
+    const headers = [
+      'STT', 'Họ và tên', 'Giới tính', 'Ngày sinh', 'Lớp',
+      'Nguyện vọng 1 ( THƯỜNG )', 'Nguyện vọng 2 ( THƯỜNG )', 'Nguyện vọng 3 ( THƯỜNG )',
+      'Mã môn chuyên', 'Nguyện vọng 1 ( CHUYÊN )', 'Nguyện vọng 2 ( CHUYÊN )',
+      'Nguyện vọng 1 ( TÍCH HỢP THƯỜNG )', 'Nguyện vọng 2 ( TÍCH HỢP THƯỜNG )', 'Nguyện vọng 3 ( TÍCH HỢP THƯỜNG )',
+      'Điểm Toán', 'Điểm Văn', 'Điểm Ngoại ngữ', 'Điểm chuyên', 'UTKK'
+    ];
+    const sampleData = [
+      [1, 'Nguyễn Văn A', 'Nam', '01/01/2011', '9A1', 'THPT Nguyễn Trung Trực', 'THPT Thanh Đa', '', '', '', '', '', '', '', 7.5, 6.0, 8.0, '', 0],
+      [2, 'Trần Thị B', 'Nữ', '15/03/2011', '9A1', 'THPT Trần Hưng Đạo', 'THPT Gò Vấp', 'THPT Thanh Đa', 'CVAN', 'THPT CHUYÊN TRẦN ĐẠI NGHĨA', 'THPT CHUYÊN LÊ HỒNG PHONG', '', '', '', 6.0, 7.5, 5.5, 7.0, 0.5],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleData]);
+    ws['!cols'] = [
+      {wch:5}, {wch:22}, {wch:8}, {wch:12}, {wch:6},
+      {wch:28}, {wch:28}, {wch:28},
+      {wch:15}, {wch:28}, {wch:28},
+      {wch:35}, {wch:35}, {wch:35},
+      {wch:10}, {wch:10}, {wch:14}, {wch:12}, {wch:6}
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'DANH_SACH');
+    XLSX.writeFile(wb, 'Mau_DuLieu_HocSinh.xlsx');
+  },
+
+  exportTeacherTemplate() {
+    // Style definitions
+    const border = {
+      top: {style:'thin', color:{rgb:'000000'}},
+      bottom: {style:'thin', color:{rgb:'000000'}},
+      left: {style:'thin', color:{rgb:'000000'}},
+      right: {style:'thin', color:{rgb:'000000'}}
+    };
+    const centerBold = { horizontal:'center', vertical:'center', wrapText:true };
+    const centerNormal = { horizontal:'center', vertical:'center' };
+    // Subject colors
+    const colors = {
+      TOÁN: { header: '0070C0', subject: 'FF0000', classCell: '92D050' },
+      VĂN:  { header: '00B050', subject: '00B050', classCell: '92D050' },
+      ANH:  { header: 'FFC000', subject: 'FFC000', classCell: '92D050' },
+    };
+    // Sample data matching h2 image
+    const sections = [
+      { subject: 'TOÁN', teachers: [
+        { name: 'Đặng Xuân Thọ', classes: ['9A7','9A8',''] },
+        { name: 'Trần Thị Hồng Nga', classes: ['9A1','9A9','9A13'] },
+        { name: 'Huỳnh Thị Hồng Loan', classes: ['9A4','9A6','9A12'] },
+        { name: 'Ngô Bích Thuỷ', classes: ['9A3','9A5','9A11'] },
+        { name: 'Trương Hữu Phúc', classes: ['9A2','9A10',''] },
+      ]},
+      { subject: 'VĂN', teachers: [
+        { name: 'Nguyễn Đăng Khoa', classes: ['9A2','9A10',''] },
+        { name: 'Lương Nguyễn Quỳnh Như', classes: ['9A4','9A6','9A12'] },
+        { name: 'Nguyễn Thị Hồng Gắm', classes: ['9A1','9A9','9A13'] },
+        { name: 'Nguyễn Ngọc Thơ', classes: ['9A3','9A5','9A11'] },
+        { name: 'Trần Thị Tuyết Nhung', classes: ['9A7','9A8',''] },
+      ]},
+      { subject: 'ANH', teachers: [
+        { name: 'Lê Ngọc Cẩm Vân', classes: ['9A2','9A10',''] },
+        { name: 'Nguyễn Thị Huyền Trang 96', classes: ['9A1','9A9','9A13'] },
+        { name: 'Nguyễn Thị Ngọc Mai', classes: ['9A4','9A6','9A12'] },
+        { name: 'Nguyễn Ngọc Phương Thùy', classes: ['9A7','9A8',''] },
+        { name: 'Phạm Thanh Hoài', classes: ['9A3','9A5','9A11'] },
+      ]},
+    ];
+
+    // Build data array row by row
+    const data = [];
+    const merges = [];
+    const styles = {}; // key: cell ref, value: style object
+
+    sections.forEach((section, sIdx) => {
+      const startRow = data.length;
+      const col = colors[section.subject];
+      const headerFontColor = section.subject === 'ANH' ? '000000' : 'FFFFFF';
+
+      // Header row: [blank] [GV] [LỚP merged C-E]
+      data.push(['', 'GV', 'LỚP', '', '']);
+      merges.push({ s:{r:startRow,c:2}, e:{r:startRow,c:4} });
+      // Style header cells
+      const hdrStyle = {
+        fill:{patternType:'solid', fgColor:{rgb:col.header}},
+        font:{bold:true, color:{rgb:'FFFFFF'}, sz:12},
+        alignment: centerBold, border
+      };
+      styles[XLSX.utils.encode_cell({r:startRow,c:1})] = hdrStyle;
+      styles[XLSX.utils.encode_cell({r:startRow,c:2})] = hdrStyle;
+      styles[XLSX.utils.encode_cell({r:startRow,c:3})] = hdrStyle;
+      styles[XLSX.utils.encode_cell({r:startRow,c:4})] = hdrStyle;
+
+      // Teacher data rows
+      section.teachers.forEach((t, tIdx) => {
+        const row = [tIdx === 0 ? section.subject : '', t.name, ...t.classes];
+        data.push(row);
+      });
+
+      // Merge subject cell vertically (column A)
+      const dataStartRow = startRow + 1;
+      const dataEndRow = startRow + section.teachers.length;
+      if (section.teachers.length > 1) {
+        merges.push({ s:{r:dataStartRow,c:0}, e:{r:dataEndRow,c:0} });
+      }
+
+      // Style subject cell (merged A column)
+      const subjStyle = {
+        fill:{patternType:'solid', fgColor:{rgb:col.subject}},
+        font:{bold:true, color:{rgb: headerFontColor}, sz:13},
+        alignment: centerBold, border
+      };
+      styles[XLSX.utils.encode_cell({r:dataStartRow,c:0})] = subjStyle;
+      // Style all merged cells in column A
+      for (let r = dataStartRow+1; r <= dataEndRow; r++) {
+        styles[XLSX.utils.encode_cell({r,c:0})] = subjStyle;
+      }
+
+      // Style teacher name cells and class cells
+      for (let r = dataStartRow; r <= dataEndRow; r++) {
+        // Teacher name (col B)
+        styles[XLSX.utils.encode_cell({r,c:1})] = {
+          font:{sz:11}, alignment:{vertical:'center'}, border
+        };
+        // Class cells (cols C, D, E) - green highlight
+        for (let c = 2; c <= 4; c++) {
+          styles[XLSX.utils.encode_cell({r,c})] = {
+            fill:{patternType:'solid', fgColor:{rgb:col.classCell}},
+            font:{bold:true, sz:11, color:{rgb:'000000'}},
+            alignment: centerNormal, border
+          };
+        }
+      }
+
+      // Empty separator row
+      if (sIdx < sections.length - 1) {
+        data.push(['', '', '', '', '']);
+      }
+    });
+
+    // Create worksheet
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [{wch:8}, {wch:30}, {wch:8}, {wch:8}, {wch:8}];
+    ws['!merges'] = merges;
+
+    // Apply styles to cells
+    Object.keys(styles).forEach(ref => {
+      if (ws[ref]) {
+        ws[ref].s = styles[ref];
+      }
+    });
+
+    // Row heights
+    ws['!rows'] = data.map(() => ({hpt: 22}));
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+    XLSX.writeFile(wb, 'Mau_GiaoVien_LopDay.xlsx');
+  },
+
+  exportThresholdTemplate() {
+    const headers = ['matruong', 'nv1', 'nv2', 'nv3'];
+    const sampleData = [
+      ['THPT Nguyễn Trung Trực', 19.75, 20.25, 21],
+      ['THPT Trần Hưng Đạo', 22.25, 22.25, 22.5],
+      ['THPT Gò Vấp', 18, 18.75, 19.75],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleData]);
+    ws['!cols'] = [{wch:35}, {wch:10}, {wch:10}, {wch:10}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'DiemChuan');
+    XLSX.writeFile(wb, 'Mau_DiemChuan_Thuong.xlsx');
+  },
+
+  exportSpecializedThresholdTemplate() {
+    const headers = ['Tên trường', 'Mã môn', 'Điểm chuẩn Nguyện vọng 1', 'Điểm chuẩn Nguyện vọng 2'];
+    const sampleData = [
+      ['THPT CHUYÊN TRẦN ĐẠI NGHĨA', 'CANH', 34.25, 34.75],
+      ['THPT CHUYÊN TRẦN ĐẠI NGHĨA', 'CVAN', 35.5, 35.75],
+      ['THPT CHUYÊN LÊ HỒNG PHONG', 'CANH', 35.5, 35.75],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleData]);
+    ws['!cols'] = [{wch:35}, {wch:15}, {wch:25}, {wch:25}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'DiemChuan_Chuyen');
+    XLSX.writeFile(wb, 'Mau_DiemChuan_Chuyen.xlsx');
+  },
+
+  exportIntegratedThresholdTemplate() {
+    const headers = ['Tên trường', 'Điểm chuẩn nguyện vọng 1', 'Điểm chuẩn nguyện vọng 2', 'Điểm chuẩn nguyện vọng 3'];
+    const sampleData = [
+      ['THPT Bùi Thị Xuân', 29.75, 30.25, 30.75],
+      ['THCS THPT Trần Đại Nghĩa', 31, 32, 32.25],
+      ['THPT Mạc Đĩnh Chi', 26.5, 26.75, 27],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleData]);
+    ws['!cols'] = [{wch:35}, {wch:25}, {wch:25}, {wch:25}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'DiemChuan_TichHop');
+    XLSX.writeFile(wb, 'Mau_DiemChuan_TichHop.xlsx');
+  }
+};
+
+// ================================================================
+// 2. UTILITY: DATA PROCESSOR
+// ================================================================
+const DataProcessor = {
+  parseStudentData(workbook) {
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const raw = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    return raw.map((row, idx) => {
+      const keys = Object.keys(row);
+      const rawMaMon = String(row[keys[8]] || '').trim();
+      const maMonParts = rawMaMon.split(/\s+/);
+      const maMonChuyen = maMonParts.length > 0 ? maMonParts[maMonParts.length - 1].toUpperCase() : '';
+
+      return {
+        stt: row[keys[0]] || idx + 1,
+        hoTen: String(row[keys[1]] || '').trim(),
+        gioiTinh: String(row[keys[2]] || '').trim(),
+        ngaySinh: String(row[keys[3]] || '').trim(),
+        lop: String(row[keys[4]] || '').trim(),
+        nv1: String(row[keys[5]] || '').trim(),
+        nv2: String(row[keys[6]] || '').trim(),
+        nv3: String(row[keys[7]] || '').trim(),
+        maMonChuyen: maMonChuyen,
+        nv1Chuyen: String(row[keys[9]] || '').trim(),
+        nv2Chuyen: String(row[keys[10]] || '').trim(),
+        nv1TichHop: String(row[keys[11]] || '').trim(),
+        nv2TichHop: String(row[keys[12]] || '').trim(),
+        nv3TichHop: String(row[keys[13]] || '').trim(),
+        diemToan: parseFloat(row[keys[14]]) || 0,
+        diemVan: parseFloat(row[keys[15]]) || 0,
+        diemNgoaiNgu: parseFloat(row[keys[16]]) || 0,
+        diemChuyen: parseFloat(row[keys[17]]) || 0,
+        utkk: parseFloat(row[keys[18]]) || 0,
+      };
+    }).filter(s => s.hoTen);
+  },
+
+  parseTeacherData(workbook) {
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const raw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    const teachers = [];
+    let currentSubject = '';
+    for (let i = 0; i < raw.length; i++) {
+      const row = raw[i];
+      if (!row || row.length === 0) continue;
+      const colA = String(row[0] || '').trim().toUpperCase();
+      const colB = String(row[1] || '').trim();
+      // Detect subject
+      if (colA === 'TOÁN' || colA === 'VĂN' || colA === 'ANH' || colA === 'TOAN' || colA === 'VAN') {
+        currentSubject = colA === 'TOAN' ? 'TOÁN' : colA === 'VAN' ? 'VĂN' : colA;
+        // Check if this row also has a teacher name
+        if (colB && colB.toUpperCase() !== 'GV') {
+          const classes = [];
+          for (let c = 2; c < row.length; c++) {
+            const cl = String(row[c] || '').trim();
+            if (cl) classes.push(cl);
+          }
+          if (classes.length > 0) {
+            teachers.push({ subject: currentSubject, name: colB, classes });
+          }
+        }
+        continue;
+      }
+      // Skip header rows
+      if (colB.toUpperCase() === 'GV' || !colB) continue;
+      // Teacher row
+      const classes = [];
+      for (let c = 2; c < row.length; c++) {
+        const cl = String(row[c] || '').trim();
+        if (cl) classes.push(cl);
+      }
+      if (currentSubject && classes.length > 0) {
+        teachers.push({ subject: currentSubject, name: colB, classes });
+      }
+    }
+    return teachers;
+  },
+
+  parseThresholdData(workbook) {
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const raw = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    return raw.map(row => {
+      const keys = Object.keys(row);
+      return {
+        school: String(row[keys[0]] || '').trim(),
+        nv1: parseFloat(row[keys[1]]) || 0,
+        nv2: parseFloat(row[keys[2]]) || 0,
+        nv3: parseFloat(row[keys[3]]) || 0,
+      };
+    }).filter(t => t.school);
+  },
+
+  parseSpecializedThresholdData(workbook) {
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const raw = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    return raw.map(row => {
+      const keys = Object.keys(row);
+      return {
+        school: String(row[keys[0]] || '').trim(),
+        maMon: String(row[keys[1]] || '').trim(),
+        nv1: parseFloat(row[keys[2]]) || 0,
+        nv2: parseFloat(row[keys[3]]) || 0,
+      };
+    }).filter(t => t.school);
+  },
+
+  parseIntegratedThresholdData(workbook) {
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const raw = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    return raw.map(row => {
+      const keys = Object.keys(row);
+      return {
+        school: String(row[keys[0]] || '').trim(),
+        nv1: parseFloat(row[keys[1]]) || 0,
+        nv2: parseFloat(row[keys[2]]) || 0,
+        nv3: parseFloat(row[keys[3]]) || 0,
+      };
+    }).filter(t => t.school);
+  },
+
+  classifyScore(score) {
+    if (score >= 8) return 'gioi';
+    if (score >= 6.5) return 'kha';
+    if (score >= 5) return 'tb';
+    return 'duoiTB';
+  },
+
+  getStudentTotalThuong(student) {
+    return student.diemToan + student.diemVan + student.diemNgoaiNgu + student.utkk;
+  },
+
+  getStudentTotalChuyenTichHop(student) {
+    return student.diemToan + student.diemVan + student.diemNgoaiNgu + (student.diemChuyen * 2);
+  },
+
+  determinePassFail(student, thresholds, thresholdsChuyen = [], thresholdsTichHop = []) {
+    // 1. Xét Chuyên
+    if (student.maMonChuyen && thresholdsChuyen.length > 0) {
+      const totalChuyen = this.getStudentTotalChuyenTichHop(student);
+      if (student.nv1Chuyen) {
+        const th = thresholdsChuyen.find(t => t.school.toLowerCase() === student.nv1Chuyen.toLowerCase() && t.maMon.toLowerCase() === student.maMonChuyen.toLowerCase());
+        if (th && totalChuyen >= th.nv1) {
+          return { status: 'pass', type: 'chuyen', nv: 1, school: student.nv1Chuyen, total: totalChuyen };
+        }
+      }
+      if (student.nv2Chuyen) {
+        const th = thresholdsChuyen.find(t => t.school.toLowerCase() === student.nv2Chuyen.toLowerCase() && t.maMon.toLowerCase() === student.maMonChuyen.toLowerCase());
+        if (th && totalChuyen >= th.nv2) {
+          return { status: 'pass', type: 'chuyen', nv: 2, school: student.nv2Chuyen, total: totalChuyen };
+        }
+      }
+    }
+
+    // 2. Xét Tích Hợp
+    if (thresholdsTichHop.length > 0) {
+      const totalTichHop = this.getStudentTotalChuyenTichHop(student);
+      if (student.nv1TichHop) {
+        const th = thresholdsTichHop.find(t => t.school.toLowerCase() === student.nv1TichHop.toLowerCase());
+        if (th && totalTichHop >= th.nv1) {
+          return { status: 'pass', type: 'tichhop', nv: 1, school: student.nv1TichHop, total: totalTichHop };
+        }
+      }
+      if (student.nv2TichHop) {
+        const th = thresholdsTichHop.find(t => t.school.toLowerCase() === student.nv2TichHop.toLowerCase());
+        if (th && totalTichHop >= th.nv2) {
+          return { status: 'pass', type: 'tichhop', nv: 2, school: student.nv2TichHop, total: totalTichHop };
+        }
+      }
+      if (student.nv3TichHop) {
+        const th = thresholdsTichHop.find(t => t.school.toLowerCase() === student.nv3TichHop.toLowerCase());
+        if (th && totalTichHop >= th.nv3) {
+          return { status: 'pass', type: 'tichhop', nv: 3, school: student.nv3TichHop, total: totalTichHop };
+        }
+      }
+    }
+
+    // 3. Xét Thường
+    const totalThuong = this.getStudentTotalThuong(student);
+    if (thresholds && thresholds.length > 0) {
+      if (student.nv1) {
+        const th = thresholds.find(t => t.school.toLowerCase() === student.nv1.toLowerCase());
+        if (th && totalThuong >= th.nv1) {
+          return { status: 'pass', type: 'thuong', nv: 1, school: student.nv1, total: totalThuong };
+        }
+      }
+      if (student.nv2) {
+        const th = thresholds.find(t => t.school.toLowerCase() === student.nv2.toLowerCase());
+        if (th && totalThuong >= th.nv2) {
+          return { status: 'pass', type: 'thuong', nv: 2, school: student.nv2, total: totalThuong };
+        }
+      }
+      if (student.nv3) {
+        const th = thresholds.find(t => t.school.toLowerCase() === student.nv3.toLowerCase());
+        if (th && totalThuong >= th.nv3) {
+          return { status: 'pass', type: 'thuong', nv: 3, school: student.nv3, total: totalThuong };
+        }
+      }
+    }
+    
+    return { status: 'fail', type: 'thuong', nv: 0, school: '', total: totalThuong };
+  },
+
+  calculateTeacherStats(students, teachers) {
+    const subjects = ['TOÁN', 'VĂN', 'ANH'];
+    const result = {};
+    subjects.forEach(subject => {
+      const subjectTeachers = teachers.filter(t => t.subject === subject);
+      const subjectKey = subject === 'TOÁN' ? 'diemToan' : subject === 'VĂN' ? 'diemVan' : 'diemNgoaiNgu';
+      result[subject] = subjectTeachers.map(teacher => {
+        const teacherStudents = students.filter(s => teacher.classes.includes(s.lop));
+        const sl = teacherStudents.length;
+        let gioi = 0, kha = 0, tb = 0, duoiTB = 0, totalScore = 0;
+        teacherStudents.forEach(s => {
+          const score = s[subjectKey];
+          totalScore += score;
+          const cat = this.classifyScore(score);
+          if (cat === 'gioi') gioi++;
+          else if (cat === 'kha') kha++;
+          else if (cat === 'tb') tb++;
+          else duoiTB++;
+        });
+        const trenTB = gioi + kha + tb;
+        const dbq = sl > 0 ? (totalScore / sl) : 0;
+        return {
+          name: teacher.name,
+          classes: teacher.classes.join(','),
+          sl, tb, kha, gioi, trenTB, duoiTB, dbq,
+          tbPct: sl > 0 ? (tb / sl * 100) : 0,
+          khaPct: sl > 0 ? (kha / sl * 100) : 0,
+          gioiPct: sl > 0 ? (gioi / sl * 100) : 0,
+          trenTBPct: sl > 0 ? (trenTB / sl * 100) : 0,
+          duoiTBPct: sl > 0 ? (duoiTB / sl * 100) : 0,
+        };
+      });
+    });
+    return result;
+  },
+
+  calculateTotal3SubjectsStats(students) {
+    const classMap = {};
+    students.forEach(s => {
+      if (!classMap[s.lop]) classMap[s.lop] = [];
+      classMap[s.lop].push(s);
+    });
+    const classes = Object.keys(classMap).sort((a, b) => {
+      const numA = parseInt(a.replace(/\D/g, '')) || 0;
+      const numB = parseInt(b.replace(/\D/g, '')) || 0;
+      return numA - numB || a.localeCompare(b);
+    });
+
+    return classes.map(cls => {
+      const classStudents = classMap[cls];
+      const siSo = classStudents.length;
+      let duoi17 = 0, tu17den19_75 = 0, tren20 = 0;
+
+      classStudents.forEach(s => {
+        const score = s.diemToan + s.diemVan + s.diemNgoaiNgu;
+        if (score < 17) duoi17++;
+        else if (score >= 17 && score <= 19.75) tu17den19_75++;
+        else tren20++;
+      });
+      
+      const tu17denTren20 = tu17den19_75 + tren20;
+      
+      return {
+        lop: cls,
+        siSo,
+        duoi17, duoi17Pct: siSo > 0 ? (duoi17 / siSo * 100) : 0,
+        tu17den19_75, tu17den19_75Pct: siSo > 0 ? (tu17den19_75 / siSo * 100) : 0,
+        tren20, tren20Pct: siSo > 0 ? (tren20 / siSo * 100) : 0,
+        tu17denTren20, tu17denTren20Pct: siSo > 0 ? (tu17denTren20 / siSo * 100) : 0
+      };
+    });
+  },
+
+  calculateClassStats(students, thresholds, thresholdsChuyen = [], thresholdsTichHop = [], customSchools = null) {
+    const classMap = {};
+    students.forEach(s => {
+      if (!classMap[s.lop]) classMap[s.lop] = [];
+      classMap[s.lop].push(s);
+    });
+    const classes = Object.keys(classMap).sort((a, b) => {
+      const numA = parseInt(a.replace(/\D/g, '')) || 0;
+      const numB = parseInt(b.replace(/\D/g, '')) || 0;
+      return numA - numB || a.localeCompare(b);
+    });
+
+    // Determine top schools
+    let topSchools = [];
+    if (customSchools && customSchools.length === 5) {
+      topSchools = customSchools.map(name => this.getSchoolAbbreviation(name));
+    } else {
+      const schoolCount = {};
+      students.forEach(s => {
+        const result = this.determinePassFail(s, thresholds, thresholdsChuyen, thresholdsTichHop);
+        if (result.status === 'pass' && result.school) {
+          const abbr = this.getSchoolAbbreviation(result.school);
+          schoolCount[abbr] = (schoolCount[abbr] || 0) + 1;
+        }
+      });
+      topSchools = Object.entries(schoolCount)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(e => e[0]);
+    }
+
+    const stats = classes.map(cls => {
+      const classStudents = classMap[cls];
+      const siSo = classStudents.length;
+      let dau = 0, rot = 0, dauNV1 = 0, dauNV2 = 0, dauNV3 = 0;
+      const schoolDist = {};
+      topSchools.forEach(s => schoolDist[s] = 0);
+      schoolDist['KHÁC'] = 0;
+
+      classStudents.forEach(s => {
+        const result = this.determinePassFail(s, thresholds, thresholdsChuyen, thresholdsTichHop);
+        if (result.status === 'pass') {
+          dau++;
+          if (result.nv === 1) dauNV1++;
+          else if (result.nv === 2) dauNV2++;
+          else if (result.nv === 3) dauNV3++;
+          const abbr = this.getSchoolAbbreviation(result.school);
+          if (topSchools.includes(abbr)) schoolDist[abbr]++;
+          else schoolDist['KHÁC']++;
+        } else {
+          rot++;
+        }
+      });
+
+      return {
+        lop: cls, siSo, dau, rot, dauNV1, dauNV2, dauNV3,
+        dauPct: siSo > 0 ? (dau / siSo * 100) : 0,
+        rotPct: siSo > 0 ? (rot / siSo * 100) : 0,
+        dauNV1Pct: siSo > 0 ? (dauNV1 / siSo * 100) : 0,
+        dauNV2Pct: siSo > 0 ? (dauNV2 / siSo * 100) : 0,
+        dauNV3Pct: siSo > 0 ? (dauNV3 / siSo * 100) : 0,
+        schoolDist,
+      };
+    });
+
+    return { stats, topSchools };
+  },
+
+  getSchoolAbbreviation(schoolName) {
+    if (!schoolName) return '';
+    const name = schoolName.trim();
+    // Remove prefixes
+    let short = name.replace(/^(THPT|THCS|TH|Trường)\s*/i, '').trim();
+    // Common abbreviations
+    const words = short.split(/\s+/);
+    if (words.length <= 2) return short;
+    // Take first letters of each word for long names
+    return words.map(w => w.charAt(0).toUpperCase()).join('');
+  },
+
+  getPassFailList(students, thresholds, thresholdsChuyen = [], thresholdsTichHop = [], filter = 'all', classFilter = 'all') {
+    let filtered = [...students];
+    if (classFilter !== 'all') {
+      filtered = filtered.filter(s => s.lop === classFilter);
+    }
+    return filtered.map(s => {
+      const result = this.determinePassFail(s, thresholds, thresholdsChuyen, thresholdsTichHop);
+      return { ...s, ...result };
+    }).filter(s => {
+      if (filter === 'pass') return s.status === 'pass';
+      if (filter === 'fail') return s.status === 'fail';
+      return true;
+    });
+  }
+};
+
+// ================================================================
+// 3. UTILITY: PDF EXPORT
+// ================================================================
+const PdfExport = {
+  async exportToPdf(elementId, filename, orientation = 'landscape', forceOnePage = false) {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+
+    // Prevent blank canvas bug on very long lists by reducing scale
+    let canvasScale = 2;
+    if (element.offsetHeight > 12000) {
+      canvasScale = 1;
+    }
+    
+    let pdfFormat = 'a4';
+    if (forceOnePage) {
+      const w = element.offsetWidth;
+      const h = element.offsetHeight;
+      const ratio = h / w;
+      const pdfWidthMm = orientation === 'landscape' ? 297 : 210;
+      // Calculate required height in mm, ensuring it's at least a standard A4 height
+      const minHeight = orientation === 'landscape' ? 210 : 297;
+      const requiredHeightMm = (pdfWidthMm - 20) * ratio; // -20 for left/right margins
+      pdfFormat = [pdfWidthMm, Math.max(minHeight, requiredHeightMm + 25)]; // +25 for top/bottom margins
+    }
+
+    const opt = {
+      margin: [10, 10, 10, 10],
+      filename: filename + '.pdf',
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: {
+        scale: canvasScale,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        onclone: (clonedDoc) => {
+          const el = clonedDoc.getElementById(elementId);
+          if (el) {
+            // Force width so layout doesn't break in PDF
+            el.style.width = orientation === 'landscape' ? '1100px' : '750px';
+            el.style.maxWidth = 'none';
+            
+            // Switch cloned doc to light theme
+            clonedDoc.body.className = 'light-theme';
+
+            // Inject minimal CSS to fix borders and hide buttons
+            const style = clonedDoc.createElement('style');
+            style.innerHTML = `
+              #${elementId} {
+                background-color: #ffffff !important;
+              }
+              #${elementId} * {
+                text-shadow: none !important;
+                box-shadow: none !important;
+                border-color: #bbbbbb !important;
+              }
+              #${elementId} .export-btn, #${elementId} .filter-bar {
+                display: none !important;
+              }
+              #${elementId} .report-table-wrapper, #${elementId} > div {
+                overflow: visible !important;
+                page-break-inside: auto !important;
+              }
+              /* Định dạng xuất PDF: Giữ màu tiêu đề, header của bảng và căn giữa */
+              #${elementId} .report-title-section {
+                text-align: center !important;
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: center !important;
+              }
+              #${elementId} .report-title-main {
+                color: #06b6d4 !important;
+                -webkit-text-fill-color: #06b6d4 !important;
+                background: none !important;
+                text-align: center !important;
+              }
+              #${elementId} .report-title-school,
+              #${elementId} .report-title-year {
+                text-align: center !important;
+              }
+              #${elementId} .report-table th {
+                background-color: rgba(6, 182, 212, 0.1) !important;
+                color: #06b6d4 !important;
+              }
+              #${elementId} .report-table td {
+                color: #333333 !important;
+              }
+            `;
+            clonedDoc.head.appendChild(style);
+          }
+        }
+      },
+      jsPDF: {
+        unit: 'mm',
+        format: pdfFormat,
+        orientation: orientation,
+      },
+      pagebreak: { mode: 'css', avoid: 'tr' }
+    };
+
+    await html2pdf().set(opt).from(element).save();
+  }
+};
+
+// ================================================================
+// 3.1. UTILITY: EXCEL EXPORT
+// ================================================================
+const ExcelExport = {
+  exportContainer(containerId, filename) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const tables = container.querySelectorAll('table');
+    if (tables.length === 0) return;
+    
+    const wb = XLSX.utils.book_new();
+    tables.forEach((table, idx) => {
+      let sheetName = `Sheet${idx + 1}`;
+      if (tables.length === 3) {
+        if (idx === 0) sheetName = "TOÁN";
+        if (idx === 1) sheetName = "VĂN";
+        if (idx === 2) sheetName = "ANH";
+      }
+      // Clone the table to inject titles safely without affecting UI
+      const clone = table.cloneNode(true);
+      const titleSection = container.querySelector('.report-title-section');
+      
+      if (titleSection) {
+        let maxCols = 1;
+        if (clone.rows.length > 0) {
+          let cols = 0;
+          Array.from(clone.rows[0].cells).forEach(c => cols += (c.colSpan || 1));
+          maxCols = Math.max(1, cols);
+        }
+
+        let thead = clone.querySelector('thead');
+        if (!thead) {
+          thead = document.createElement('thead');
+          clone.insertBefore(thead, clone.firstChild);
+        }
+
+        const fragment = document.createDocumentFragment();
+        titleSection.childNodes.forEach(node => {
+          if (node.textContent && node.textContent.trim() !== '') {
+            const text = node.textContent.trim();
+            const isMain = node.classList && node.classList.contains('report-title-main');
+            
+            const tr = document.createElement('tr');
+            tr.className = 'excel-injected-title';
+            if (isMain) tr.classList.add('excel-title-main');
+            
+            const th = document.createElement('th');
+            th.colSpan = maxCols;
+            th.textContent = text;
+            tr.appendChild(th);
+            fragment.appendChild(tr);
+          }
+        });
+        
+        // Add one empty row for spacing
+        const emptyTr = document.createElement('tr');
+        emptyTr.className = 'excel-injected-title';
+        const emptyTh = document.createElement('th');
+        emptyTh.colSpan = maxCols;
+        emptyTr.appendChild(emptyTh);
+        fragment.appendChild(emptyTr);
+        
+        thead.insertBefore(fragment, thead.firstChild);
+      }
+
+      const ws = XLSX.utils.table_to_sheet(clone);
+      
+      // Auto-style the Excel sheet based on HTML structure
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      const htmlRows = clone.querySelectorAll('tr');
+      
+      // Set basic column widths
+      ws['!cols'] = [];
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        ws['!cols'].push({ wch: C === 0 ? 8 : C === 1 ? 25 : 15 });
+      }
+
+      for (let R = range.s.r; R <= range.e.r; ++R) {
+        const htmlRow = htmlRows[R];
+        if (!htmlRow) continue;
+        
+        const isInjectedTitle = htmlRow.classList.contains('excel-injected-title');
+        const isMainTitle = htmlRow.classList.contains('excel-title-main');
+        const isHeader = !isInjectedTitle && htmlRow.closest('thead') !== null;
+        const isGrandTotal = htmlRow.classList.contains('row-grand-total') || htmlRow.classList.contains('row-total');
+        const isEven = htmlRow.classList.contains('row-even');
+        const isSubjectHeader = htmlRow.classList.contains('row-subject-header');
+        
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const cellAddress = XLSX.utils.encode_cell({c: C, r: R});
+          if (!ws[cellAddress]) continue;
+          
+          let font = { name: 'Arial', sz: 11, bold: false, color: { rgb: '000000' } };
+          
+          if (isInjectedTitle) {
+            font.bold = true;
+            font.sz = isMainTitle ? 14 : 11;
+            font.color.rgb = isMainTitle ? '0044CC' : '333333';
+            ws[cellAddress].s = {
+              font: font,
+              alignment: { vertical: 'center', horizontal: 'center' }
+            };
+            continue;
+          }
+          
+          let fill = { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } };
+          
+          if (isHeader) {
+            fill.fgColor.rgb = 'E0F2FE'; // Light Blue background
+            font.bold = true;
+            font.color.rgb = 'CC0000'; // Dark Red text
+          } else if (isSubjectHeader) {
+            fill.fgColor.rgb = 'F3E8FF';
+            font.bold = true;
+            font.color.rgb = '581C87';
+          } else if (isGrandTotal) {
+            fill.fgColor.rgb = 'FEF2F2';
+            font.bold = true;
+            font.color.rgb = '991B1B';
+          } else if (isEven) {
+            fill.fgColor.rgb = 'F8FAFC'; // Light Gray/Blue for even rows
+          }
+
+          ws[cellAddress].s = {
+            font: font,
+            fill: fill,
+            border: {
+              top: { style: 'thin', color: { rgb: 'CCCCCC' } },
+              bottom: { style: 'thin', color: { rgb: 'CCCCCC' } },
+              left: { style: 'thin', color: { rgb: 'CCCCCC' } },
+              right: { style: 'thin', color: { rgb: 'CCCCCC' } }
+            },
+            alignment: { vertical: 'center', horizontal: 'center', wrapText: true }
+          };
+        }
+      }
+      
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    });
+    XLSX.writeFile(wb, filename + '.xlsx');
+  }
+};
+
+// ================================================================
+// 4. CONTEXT: DATA CONTEXT
+// ================================================================
+const DataContext = React.createContext();
+
+function DataProvider({ children }) {
+  const [students, setStudents] = React.useState([]);
+  const [teachers, setTeachers] = React.useState([]);
+  const [thresholds, setThresholds] = React.useState([]);
+  const [thresholdsChuyen, setThresholdsChuyen] = React.useState([]);
+  const [thresholdsTichHop, setThresholdsTichHop] = React.useState([]);
+  const [schoolName, setSchoolName] = React.useState('TRƯỜNG THCS ___');
+  const [schoolYear, setSchoolYear] = React.useState('2025-2026');
+  const [reporterName, setReporterName] = React.useState('');
+  const [hoanThanhTHCS, setHoanThanhTHCS] = React.useState('');
+  const [tuyenThang, setTuyenThang] = React.useState('');
+  const [toasts, setToasts] = React.useState([]);
+
+  const addToast = React.useCallback((message, type = 'info') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4000);
+  }, []);
+
+  const removeToast = React.useCallback((id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  const clearAll = React.useCallback(() => {
+    setStudents([]);
+    setTeachers([]);
+    setThresholds([]);
+    setThresholdsChuyen([]);
+    setThresholdsTichHop([]);
+    addToast('Đã xóa toàn bộ dữ liệu', 'info');
+  }, [addToast]);
+
+  const hasStudents = students.length > 0;
+  const hasTeachers = teachers.length > 0;
+  const hasThresholds = thresholds.length > 0;
+  const hasThresholdsChuyen = thresholdsChuyen.length > 0;
+  const hasThresholdsTichHop = thresholdsTichHop.length > 0;
+  const isDataReady = hasStudents && hasTeachers;
+  const isFullDataReady = hasStudents && hasTeachers && (hasThresholds || hasThresholdsChuyen || hasThresholdsTichHop);
+
+  const value = {
+    students, setStudents,
+    teachers, setTeachers,
+    thresholds, setThresholds,
+    thresholdsChuyen, setThresholdsChuyen,
+    thresholdsTichHop, setThresholdsTichHop,
+    schoolName, setSchoolName,
+    schoolYear, setSchoolYear,
+    reporterName, setReporterName,
+    hoanThanhTHCS, setHoanThanhTHCS,
+    tuyenThang, setTuyenThang,
+    hasStudents, hasTeachers, hasThresholds, hasThresholdsChuyen, hasThresholdsTichHop,
+    isDataReady, isFullDataReady,
+    toasts, addToast, removeToast,
+    clearAll,
+  };
+
+  return React.createElement(DataContext.Provider, { value }, children);
+}
+
+function useData() {
+  return React.useContext(DataContext);
+}
+
+// ================================================================
+// 5. COMPONENT: TOAST CONTAINER
+// ================================================================
+function ToastContainer() {
+  const { toasts, removeToast } = useData();
+  if (toasts.length === 0) return null;
+  return (
+    <div className="toast-container">
+      {toasts.map(t => (
+        <div key={t.id} className={`toast ${t.type}`}>
+          <span className="toast-icon">
+            {t.type === 'success' ? '✅' : t.type === 'error' ? '❌' : 'ℹ️'}
+          </span>
+          <span className="toast-msg">{t.message}</span>
+          <button className="toast-close" onClick={() => removeToast(t.id)}>✕</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ================================================================
+// 6. COMPONENT: SIDEBAR
+// ================================================================
+function Sidebar({ currentPage, onNavigate, isOpen, onClose }) {
+  const { hasStudents, hasTeachers, hasThresholds, hasThresholdsChuyen, hasThresholdsTichHop, isDataReady, isFullDataReady, clearAll } = useData();
+
+  const anyThreshold = hasThresholds || hasThresholdsChuyen || hasThresholdsTichHop;
+
+  const navItems = [
+    { id: 'upload', icon: '📤', label: 'Upload Dữ Liệu', section: 'DỮ LIỆU', alwaysEnabled: true },
+    { id: 'teacher-report', icon: '👨‍🏫', label: 'Tổng hợp điểm thi - GV dạy', section: 'BÁO CÁO', enabled: isDataReady },
+    { id: 'detailed-report', icon: '📊', label: 'Thống kê điểm chi tiết Toán - Văn - Anh', section: 'BÁO CÁO', enabled: isFullDataReady },
+    { id: 'total3', icon: '📈', label: 'Tổng điểm 3 môn', section: 'BÁO CÁO', enabled: isDataReady },
+    { id: 'class-report', icon: '🏫', label: 'Tổng hợp KQ thi - Theo lớp', section: 'BÁO CÁO', enabled: isFullDataReady },
+    { id: 'pass-fail', icon: '📋', label: 'Danh sách HS Đậu - Rớt', section: 'BÁO CÁO', enabled: isFullDataReady },
+    { id: 'general-summary', icon: '📈', label: 'Thống kê Tổng hợp', section: 'BÁO CÁO', enabled: isFullDataReady },
+  ];
+
+  let lastSection = '';
+  return (
+    <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
+      <div className="sidebar-logo">
+        <h1>📊 Thống Kê TS10</h1>
+        <p>Phân tích dữ liệu tuyển sinh lớp 10</p>
+      </div>
+
+      <div className="sidebar-section">
+        {navItems.map(item => {
+          const showSection = item.section !== lastSection;
+          if (showSection) lastSection = item.section;
+          const enabled = item.alwaysEnabled || item.enabled;
+          return (
+            <React.Fragment key={item.id}>
+              {showSection && <div className="sidebar-section-title">{item.section}</div>}
+              <nav className="sidebar-nav">
+                <div
+                  className={`sidebar-link ${currentPage === item.id ? 'active' : ''} ${!enabled ? 'disabled' : ''}`}
+                  onClick={() => { if (enabled) { onNavigate(item.id); onClose?.(); }}}
+                  title={!enabled ? 'Vui lòng upload đủ dữ liệu trước' : ''}
+                >
+                  <span className="sidebar-link-icon">{item.icon}</span>
+                  <span>{item.label}</span>
+                </div>
+              </nav>
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      <div className="sidebar-status">
+        <div className="status-card">
+          <div className="status-item">
+            <span>Dữ liệu HS</span>
+            <span className={`status-badge ${hasStudents ? 'loaded' : 'not-loaded'}`}>
+              {hasStudents ? '✓ Đã tải' : '✕ Chưa có'}
+            </span>
+          </div>
+          <div className="status-item">
+            <span>Giáo viên</span>
+            <span className={`status-badge ${hasTeachers ? 'loaded' : 'not-loaded'}`}>
+              {hasTeachers ? '✓ Đã tải' : '✕ Chưa có'}
+            </span>
+          </div>
+          <div className="status-item">
+            <span>Điểm chuẩn</span>
+            <span className={`status-badge ${anyThreshold ? 'loaded' : 'not-loaded'}`}>
+              {anyThreshold ? '✓ Đã tải' : '✕ Chưa có'}
+            </span>
+          </div>
+          {(hasStudents || hasTeachers || anyThreshold) && (
+            <button className="btn btn-danger btn-sm" style={{width:'100%', marginTop:'10px'}} onClick={clearAll}>
+              🗑️ Xóa toàn bộ dữ liệu
+            </button>
+          )}
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+// ================================================================
+// 7. COMPONENT: UPLOAD SECTION
+// ================================================================
+function UploadSection() {
+  const { students, setStudents, teachers, setTeachers, thresholds, setThresholds,
+          thresholdsChuyen, setThresholdsChuyen, thresholdsTichHop, setThresholdsTichHop,
+          schoolName, setSchoolName, schoolYear, setSchoolYear, reporterName, setReporterName, addToast } = useData();
+
+  const handleFileUpload = (e, type) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const wb = XLSX.read(evt.target.result, { type: 'binary' });
+        if (type === 'student') {
+          const data = DataProcessor.parseStudentData(wb);
+          setStudents(data);
+          addToast(`Đã tải ${data.length} học sinh thành công!`, 'success');
+        } else if (type === 'teacher') {
+          const data = DataProcessor.parseTeacherData(wb);
+          setTeachers(data);
+          addToast(`Đã tải ${data.length} giáo viên thành công!`, 'success');
+        } else if (type === 'threshold') {
+          const data = DataProcessor.parseThresholdData(wb);
+          setThresholds(data);
+          addToast(`Đã tải điểm chuẩn ${data.length} trường thành công!`, 'success');
+        } else if (type === 'thresholdChuyen') {
+          const data = DataProcessor.parseSpecializedThresholdData(wb);
+          setThresholdsChuyen(data);
+          addToast(`Đã tải điểm chuẩn chuyên ${data.length} trường thành công!`, 'success');
+        } else if (type === 'thresholdTichHop') {
+          const data = DataProcessor.parseIntegratedThresholdData(wb);
+          setThresholdsTichHop(data);
+          addToast(`Đã tải điểm chuẩn tích hợp ${data.length} trường thành công!`, 'success');
+        }
+      } catch (err) {
+        addToast('Lỗi đọc file! Vui lòng kiểm tra định dạng Excel.', 'error');
+        console.error(err);
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = '';
+  };
+
+  const handleDragOver = (e) => { e.preventDefault(); e.currentTarget.classList.add('drag-over'); };
+  const handleDragLeave = (e) => { e.currentTarget.classList.remove('drag-over'); };
+  const handleDrop = (e, type) => {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileUpload({ target: { files: [file] } }, type);
+  };
+
+  const cards = [
+    {
+      type: 'student', cls: 'student', icon: '👨‍🎓',
+      title: 'Dữ liệu Học sinh', desc: 'File danh sách học sinh với điểm thi',
+      data: students, countLabel: 'học sinh',
+      onExport: () => ExcelTemplates.exportStudentTemplate(),
+    },
+    {
+      type: 'teacher', cls: 'teacher', icon: '👨‍🏫',
+      title: 'Giáo viên - Lớp dạy', desc: 'File phân công GV theo môn và lớp',
+      data: teachers, countLabel: 'giáo viên',
+      onExport: () => ExcelTemplates.exportTeacherTemplate(),
+    },
+    {
+      type: 'threshold', cls: 'threshold', icon: '🎯',
+      title: 'Điểm chuẩn Thường', desc: 'File điểm chuẩn các trường THPT Thường (nếu có)',
+      data: thresholds, countLabel: 'trường',
+      onExport: () => ExcelTemplates.exportThresholdTemplate(),
+    },
+    {
+      type: 'thresholdChuyen', cls: 'threshold', icon: '🌟',
+      title: 'Điểm chuẩn Chuyên', desc: 'File điểm chuẩn các trường THPT Chuyên (nếu có)',
+      data: thresholdsChuyen, countLabel: 'trường',
+      onExport: () => ExcelTemplates.exportSpecializedThresholdTemplate(),
+    },
+    {
+      type: 'thresholdTichHop', cls: 'threshold', icon: '🧩',
+      title: 'Điểm chuẩn Tích hợp', desc: 'File điểm chuẩn Tích hợp (nếu có)',
+      data: thresholdsTichHop, countLabel: 'trường',
+      onExport: () => ExcelTemplates.exportIntegratedThresholdTemplate(),
+    },
+  ];
+
+  return (
+    <div className="report-container animate-fade-in">
+      <div className="page-header">
+        <h2>📤 Upload Dữ Liệu</h2>
+        <p>Tải lên file Excel dữ liệu để bắt đầu phân tích thống kê tuyển sinh</p>
+      </div>
+
+      {/* Settings */}
+      <div className="settings-bar">
+        <div className="setting-group">
+          <label>Tên trường:</label>
+          <input value={schoolName} onChange={e => setSchoolName(e.target.value)} style={{width:'220px'}} />
+        </div>
+        <div className="setting-group">
+          <label>Năm học:</label>
+          <input value={schoolYear} onChange={e => setSchoolYear(e.target.value)} style={{width:'120px'}} />
+        </div>
+        <div className="setting-group">
+          <label>Người báo cáo:</label>
+          <input value={reporterName} onChange={e => setReporterName(e.target.value)} style={{width:'200px'}} placeholder="Nhập tên người báo cáo" />
+        </div>
+      </div>
+
+      <div className="upload-grid">
+        {cards.map(card => (
+          <div key={card.type} className={`upload-card ${card.cls}`}>
+            <div className="upload-card-header">
+              <div className="upload-card-icon">{card.icon}</div>
+              <div>
+                <div className="upload-card-title">{card.title}</div>
+                <div className="upload-card-desc">{card.desc}</div>
+              </div>
+            </div>
+
+            {card.data.length > 0 && (
+              <div className="upload-file-info">
+                <span className="file-icon">📄</span>
+                <span className="file-name">Đã tải thành công</span>
+                <span className="file-count">{card.data.length} {card.countLabel}</span>
+              </div>
+            )}
+
+            <div
+              className={`upload-dropzone ${card.data.length > 0 ? 'uploaded' : ''}`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, card.type)}
+            >
+              <input type="file" accept=".xlsx,.xls" onChange={(e) => handleFileUpload(e, card.type)} />
+              <div className="upload-dropzone-icon">{card.data.length > 0 ? '✅' : '📁'}</div>
+              <div className="upload-dropzone-text">
+                {card.data.length > 0 ? 'Kéo thả file mới để cập nhật' : 'Kéo thả file Excel vào đây'}
+              </div>
+              <div className="upload-dropzone-hint">hoặc click để chọn file (.xlsx, .xls)</div>
+            </div>
+
+            <div className="btn-group">
+              <button className="btn btn-secondary btn-sm" onClick={card.onExport}>
+                <span className="btn-icon">📥</span> Tải file mẫu
+              </button>
+              {card.data.length > 0 && (
+                <button className="btn btn-danger btn-sm" onClick={() => {
+                  if (card.type === 'student') setStudents([]);
+                  else if (card.type === 'teacher') setTeachers([]);
+                  else setThresholds([]);
+                  addToast('Đã xóa dữ liệu', 'info');
+                }}>
+                  <span className="btn-icon">🗑️</span> Xóa
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Quick stats */}
+      {students.length > 0 && (
+        <div style={{ marginTop: '30px' }}>
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '16px', color: 'var(--text-secondary)' }}>
+            📈 Thông tin tổng quan
+          </h3>
+          <div className="stats-grid">
+            <div className="stat-card">
+              <div className="stat-card-label">Tổng học sinh</div>
+              <div className="stat-card-value">{students.length}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-card-label">Số lớp</div>
+              <div className="stat-card-value">{new Set(students.map(s => s.lop)).size}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-card-label">Giáo viên</div>
+              <div className="stat-card-value">{teachers.length}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-card-label">Trường THPT</div>
+              <div className="stat-card-value">{thresholds.length || '—'}</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ================================================================
+// 8. COMPONENT: TEACHER SCORE REPORT (h4)
+// ================================================================
+function TeacherScoreReport() {
+  const { students, teachers, schoolName, schoolYear, reporterName } = useData();
+  const [exporting, setExporting] = React.useState(false);
+
+  const stats = React.useMemo(() =>
+    DataProcessor.calculateTeacherStats(students, teachers),
+    [students, teachers]
+  );
+
+  const fmt = (n) => n.toFixed(2).replace('.', ',');
+  const fmtPct = (n) => n.toFixed(2).replace('.', ',') + '%';
+
+  const handleExportPdf = async () => {
+    setExporting(true);
+    try {
+      await PdfExport.exportToPdf('teacher-report-content', `ThongKe_DiemThi_GV_${schoolYear}`, 'landscape', true);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportExcel = () => {
+    ExcelExport.exportContainer('teacher-report-content', `ThongKe_DiemThi_GV_${schoolYear}`);
+  };
+
+  const subjects = ['TOÁN', 'VĂN', 'ANH'];
+
+  const calcSubjectTotal = (subject) => {
+    const rows = stats[subject] || [];
+    const total = { sl: 0, tb: 0, kha: 0, gioi: 0, trenTB: 0, duoiTB: 0, totalScore: 0 };
+    rows.forEach(r => {
+      total.sl += r.sl;
+      total.tb += r.tb;
+      total.kha += r.kha;
+      total.gioi += r.gioi;
+      total.trenTB += r.trenTB;
+      total.duoiTB += r.duoiTB;
+      total.totalScore += r.dbq * r.sl;
+    });
+    total.dbq = total.sl > 0 ? total.totalScore / total.sl : 0;
+    return total;
+  };
+
+  return (
+    <div className="report-container animate-fade-in">
+      <div className="page-header">
+        <h2>👨‍🏫 Tổng hợp điểm thi - Giáo viên dạy</h2>
+        <p>Thống kê kết quả thi theo từng giáo viên bộ môn</p>
+      </div>
+
+      <div className="report-actions">
+        <div></div>
+        <div style={{display:'flex', gap:'12px'}}>
+          <button className="btn btn-export-pdf" onClick={handleExportPdf} disabled={exporting}>
+            {exporting ? <><span className="spinner"></span> Đang xuất...</> : <>📄 Xuất PDF</>}
+          </button>
+          <button className="btn" style={{background: '#10b981', color: '#fff'}} onClick={handleExportExcel} disabled={exporting}>
+            📊 Xuất Excel
+          </button>
+        </div>
+      </div>
+
+      <div className="report-card" id="teacher-report-content">
+        <div className="report-title-section">
+          <div className="report-title-school">{schoolName}</div>
+          <div className="report-title-main">THỐNG KÊ TỈ LỆ TUYỂN SINH 10 {schoolYear.split('-').map(y => parseInt(y)+1).join('-')}</div>
+          <div className="report-title-year">NĂM HỌC {schoolYear}</div>
+        </div>
+
+        <div className="report-table-wrapper">
+          <table className="report-table">
+            <tbody>
+              {subjects.map(subject => {
+                const rows = stats[subject] || [];
+                const total = calcSubjectTotal(subject);
+                
+                // Colors matching the user's screenshot
+                let headerBg = '#f4b084'; // Default orange for TOÁN, ANH
+                if (subject === 'VĂN') headerBg = '#a9d08e'; // Green for VĂN
+                
+                const headerStyle = { backgroundColor: headerBg, color: '#000', fontWeight: 'bold', padding: '10px 8px', border: '1px solid var(--border-glass)', textAlign: 'center' };
+                const totalStyle = { backgroundColor: headerBg, color: '#d32f2f', fontWeight: 'bold' };
+                const totalDataStyle = { backgroundColor: headerBg, color: '#d32f2f', fontWeight: 'bold', textAlign: 'center' };
+
+                return (
+                  <React.Fragment key={subject}>
+                    <tr>
+                      <th style={headerStyle}>{subject}</th>
+                      <th style={headerStyle}>LỚP</th>
+                      <th style={headerStyle}>SL</th>
+                      <th style={headerStyle}>T.BÌNH</th>
+                      <th style={headerStyle}>TỈ LỆ</th>
+                      <th style={headerStyle}>KHÁ</th>
+                      <th style={headerStyle}>TỈ LỆ</th>
+                      <th style={headerStyle}>GIỎI</th>
+                      <th style={headerStyle}>TỈ LỆ</th>
+                      <th style={headerStyle}>TRÊN TB</th>
+                      <th style={headerStyle}>TỈ LỆ</th>
+                      <th style={headerStyle}>DƯỚI TB</th>
+                      <th style={headerStyle}>TỈ LỆ</th>
+                      <th style={headerStyle}>ĐBQ</th>
+                    </tr>
+                    {rows.map((r, i) => (
+                      <tr key={i}>
+                        <td className="text-left">{r.name}</td>
+                        <td>{r.classes}</td>
+                        <td>{r.sl}</td>
+                        <td className="col-group-border-left">{r.tb}</td>
+                        <td>{fmtPct(r.tbPct)}</td>
+                        <td className="col-group-border-left">{r.kha}</td>
+                        <td>{fmtPct(r.khaPct)}</td>
+                        <td className="col-group-border-left">{r.gioi}</td>
+                        <td>{fmtPct(r.gioiPct)}</td>
+                        <td className="col-group-border-left">{r.trenTB}</td>
+                        <td>{fmtPct(r.trenTBPct)}</td>
+                        <td className="col-group-border-left">{r.duoiTB}</td>
+                        <td>{fmtPct(r.duoiTBPct)}</td>
+                        <td className="col-group-border-left highlight-red">{fmt(r.dbq)}</td>
+                      </tr>
+                    ))}
+                    <tr className="row-total">
+                      <td colSpan="2" className="text-left" style={{...totalStyle, paddingLeft: '12px'}}>TOÀN TRƯỜNG</td>
+                      <td style={totalDataStyle}>{total.sl}</td>
+                      <td className="col-group-border-left" style={totalDataStyle}>{total.tb}</td>
+                      <td style={totalDataStyle}>{total.sl > 0 ? fmtPct(total.tb/total.sl*100) : '0,00%'}</td>
+                      <td className="col-group-border-left" style={totalDataStyle}>{total.kha}</td>
+                      <td style={totalDataStyle}>{total.sl > 0 ? fmtPct(total.kha/total.sl*100) : '0,00%'}</td>
+                      <td className="col-group-border-left" style={totalDataStyle}>{total.gioi}</td>
+                      <td style={totalDataStyle}>{total.sl > 0 ? fmtPct(total.gioi/total.sl*100) : '0,00%'}</td>
+                      <td className="col-group-border-left" style={totalDataStyle}>{total.trenTB}</td>
+                      <td style={totalDataStyle}>{total.sl > 0 ? fmtPct(total.trenTB/total.sl*100) : '0,00%'}</td>
+                      <td className="col-group-border-left" style={totalDataStyle}>{total.duoiTB}</td>
+                      <td style={totalDataStyle}>{total.sl > 0 ? fmtPct(total.duoiTB/total.sl*100) : '0,00%'}</td>
+                      <td className="col-group-border-left" style={totalDataStyle}>{fmt(total.dbq)}</td>
+                    </tr>
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="pdf-footer" style={{padding: '16px 28px', textAlign: 'right', fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic'}}>
+          <div style={{marginBottom: '4px'}}>Ngày xuất báo cáo: {new Date().toLocaleDateString('vi-VN')}</div>
+          {reporterName && <div>Người báo cáo: <strong style={{color:'var(--text-primary)'}}>{reporterName}</strong></div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ================================================================
+// 8.5. COMPONENT: TOTAL 3 SUBJECTS REPORT
+// ================================================================
+function Total3SubjectsReport() {
+  const { students, schoolName, schoolYear, reporterName } = useData();
+  const [exporting, setExporting] = React.useState(false);
+
+  const stats = React.useMemo(() => DataProcessor.calculateTotal3SubjectsStats(students), [students]);
+  const fmtPct = (n) => n.toFixed(1).replace('.', ',') + '%';
+
+  const handleExportPdf = async () => {
+    setExporting(true);
+    try {
+      await PdfExport.exportToPdf('total3-report-content', `ThongKe_TongDiem3Mon_${schoolYear}`, 'landscape', true);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportExcel = () => {
+    ExcelExport.exportContainer('total3-report-content', `ThongKe_TongDiem3Mon_${schoolYear}`);
+  };
+
+  const grandTotal = React.useMemo(() => {
+    const t = { siSo: 0, duoi17: 0, tu17den19_75: 0, tren20: 0, tu17denTren20: 0 };
+    stats.forEach(s => {
+      t.siSo += s.siSo;
+      t.duoi17 += s.duoi17;
+      t.tu17den19_75 += s.tu17den19_75;
+      t.tren20 += s.tren20;
+      t.tu17denTren20 += s.tu17denTren20;
+    });
+    return t;
+  }, [stats]);
+
+  return (
+    <div className="report-container animate-fade-in">
+      <div className="page-header">
+        <h2>📈 Tổng điểm 3 môn</h2>
+        <p>Thống kê số lượng và tỉ lệ học sinh đạt các mức điểm tổng 3 môn (Toán + Văn + Anh)</p>
+      </div>
+
+      <div className="report-actions">
+        <div></div>
+        <div style={{display:'flex', gap:'12px'}}>
+          <button className="btn btn-export-pdf" onClick={handleExportPdf} disabled={exporting}>
+            {exporting ? <><span className="spinner"></span> Đang xuất...</> : <>📄 Xuất PDF</>}
+          </button>
+          <button className="btn" style={{background: '#10b981', color: '#fff'}} onClick={handleExportExcel} disabled={exporting}>
+            📊 Xuất Excel
+          </button>
+        </div>
+      </div>
+
+      <div className="report-card" id="total3-report-content">
+        <div className="report-title-section">
+          <div className="report-title-school">{schoolName}</div>
+          <div className="report-title-main">THỐNG KÊ TỔNG ĐIỂM 3 MÔN</div>
+          <div className="report-title-year">NĂM HỌC {schoolYear}</div>
+        </div>
+        <div className="report-table-wrapper">
+          <table className="report-table">
+            <thead>
+              <tr>
+                <th>LỚP</th>
+                <th>TỔNG THI</th>
+                <th>DƯỚI 17</th>
+                <th>TỈ LỆ</th>
+                <th>TỪ 17-19,75</th>
+                <th>TỈ LỆ</th>
+                <th>TRÊN 20</th>
+                <th>TỈ LỆ</th>
+                <th>Từ 17<br/>đến trên 20</th>
+                <th>TỈ LỆ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.map((s, i) => (
+                <tr key={i} className={i % 2 === 0 ? 'row-even' : 'row-odd'}>
+                  <td style={{fontWeight: 'bold'}}>{s.lop}</td>
+                  <td>{s.siSo}</td>
+                  <td>{s.duoi17}</td>
+                  <td style={{fontWeight: 'bold'}}>{fmtPct(s.duoi17Pct)}</td>
+                  <td>{s.tu17den19_75}</td>
+                  <td style={{fontWeight: 'bold'}}>{fmtPct(s.tu17den19_75Pct)}</td>
+                  <td>{s.tren20}</td>
+                  <td style={{fontWeight: 'bold'}}>{fmtPct(s.tren20Pct)}</td>
+                  <td>{s.tu17denTren20}</td>
+                  <td style={{fontWeight: 'bold'}}>{fmtPct(s.tu17denTren20Pct)}</td>
+                </tr>
+              ))}
+              <tr className="row-grand-total">
+                <td style={{fontWeight: 'bold'}}>TOÀN TRƯỜNG</td>
+                <td style={{fontWeight: 'bold'}}>{grandTotal.siSo}</td>
+                <td style={{fontWeight: 'bold'}}>{grandTotal.duoi17}</td>
+                <td style={{fontWeight: 'bold'}}>
+                  {grandTotal.siSo > 0 ? fmtPct(grandTotal.duoi17 / grandTotal.siSo * 100) : '0,0%'}
+                </td>
+                <td style={{fontWeight: 'bold'}}>{grandTotal.tu17den19_75}</td>
+                <td style={{fontWeight: 'bold'}}>
+                  {grandTotal.siSo > 0 ? fmtPct(grandTotal.tu17den19_75 / grandTotal.siSo * 100) : '0,0%'}
+                </td>
+                <td style={{fontWeight: 'bold'}}>{grandTotal.tren20}</td>
+                <td style={{fontWeight: 'bold'}}>
+                  {grandTotal.siSo > 0 ? fmtPct(grandTotal.tren20 / grandTotal.siSo * 100) : '0,0%'}
+                </td>
+                <td style={{fontWeight: 'bold'}}>{grandTotal.tu17denTren20}</td>
+                <td style={{fontWeight: 'bold'}}>
+                  {grandTotal.siSo > 0 ? fmtPct(grandTotal.tu17denTren20 / grandTotal.siSo * 100) : '0,0%'}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="pdf-footer" style={{padding: '16px 28px', textAlign: 'right', fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic'}}>
+          <div style={{marginBottom: '4px'}}>Ngày xuất báo cáo: {new Date().toLocaleDateString('vi-VN')}</div>
+          {reporterName && <div>Người báo cáo: <strong style={{color:'var(--text-primary)'}}>{reporterName}</strong></div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ================================================================
+// 9. COMPONENT: CLASS RESULT REPORT (h5)
+// ================================================================
+function ClassResultReport() {
+  const { students, thresholds, thresholdsChuyen, thresholdsTichHop, schoolName, schoolYear, reporterName } = useData();
+  const [exporting, setExporting] = React.useState(false);
+  
+  const availableSchools = React.useMemo(() => {
+    const schoolSet = new Set();
+    students.forEach(s => {
+      if (s.nv1) schoolSet.add(s.nv1);
+      if (s.nv2) schoolSet.add(s.nv2);
+      if (s.nv3) schoolSet.add(s.nv3);
+    });
+    return Array.from(schoolSet).sort((a, b) => a.localeCompare(b, 'vi'));
+  }, [students]);
+  const [selectedSchools, setSelectedSchools] = React.useState([]);
+  const [showModal, setShowModal] = React.useState(false);
+
+  React.useEffect(() => {
+    if (availableSchools.length > 0 && selectedSchools.length === 0) {
+      // Find top schools by pass count to set as default
+      const count = {};
+      students.forEach(s => {
+        const res = DataProcessor.determinePassFail(s, thresholds, thresholdsChuyen, thresholdsTichHop);
+        if (res.status === 'pass' && res.school) {
+          count[res.school] = (count[res.school] || 0) + 1;
+        }
+      });
+      const top5 = Object.entries(count).sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => e[0]);
+      
+      // Ensure we have exactly 5 schools by padding with available schools if needed
+      const defaultSelections = [...new Set([...top5, ...availableSchools])].slice(0, 5);
+      setSelectedSchools(defaultSelections);
+    }
+  }, [availableSchools, students, thresholds, selectedSchools.length]);
+
+  const { stats, topSchools } = React.useMemo(() =>
+    DataProcessor.calculateClassStats(students, thresholds, thresholdsChuyen, thresholdsTichHop, selectedSchools.length === 5 ? selectedSchools : null),
+    [students, thresholds, thresholdsChuyen, thresholdsTichHop, selectedSchools]
+  );
+
+  const fmtPct = (n) => n.toFixed(1).replace('.', ',') + '%';
+
+  const handleExportPdf = async () => {
+    setExporting(true);
+    try {
+      await PdfExport.exportToPdf('class-report-content', `ThongKe_ChiTiet_TiLe_TS10_${schoolYear}`, 'landscape', true);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportExcel = () => {
+    ExcelExport.exportContainer('class-report-content', `ThongKe_ChiTiet_TiLe_TS10_${schoolYear}`);
+  };
+
+  // Calculate grand total
+  const grandTotal = React.useMemo(() => {
+    const t = { siSo: 0, dau: 0, rot: 0, dauNV1: 0, dauNV2: 0, dauNV3: 0, schoolDist: {} };
+    const allSchools = [...topSchools, 'KHÁC'];
+    allSchools.forEach(s => t.schoolDist[s] = 0);
+    stats.forEach(s => {
+      t.siSo += s.siSo;
+      t.dau += s.dau;
+      t.rot += s.rot;
+      t.dauNV1 += s.dauNV1;
+      t.dauNV2 += s.dauNV2;
+      t.dauNV3 += s.dauNV3;
+      allSchools.forEach(sch => { t.schoolDist[sch] += (s.schoolDist[sch] || 0); });
+    });
+    return t;
+  }, [stats, topSchools]);
+
+  return (
+    <div className="report-container animate-fade-in">
+      <div className="page-header">
+        <h2>🏫 Tổng hợp kết quả thi - Theo lớp</h2>
+        <p>Thống kê chi tiết tỉ lệ đậu/rớt và phân bố nguyện vọng theo từng lớp</p>
+      </div>
+
+      <div className="report-actions">
+        <div className="stats-grid" style={{marginBottom:0, flex:1}}>
+          <div className="stat-card">
+            <div className="stat-card-label">Tổng học sinh</div>
+            <div className="stat-card-value">{grandTotal.siSo}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-label">Đậu</div>
+            <div className="stat-card-value" style={{background:'var(--gradient-success)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent'}}>
+              {grandTotal.dau}
+            </div>
+            <div className="stat-card-sub">{grandTotal.siSo > 0 ? fmtPct(grandTotal.dau/grandTotal.siSo*100) : '0%'}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-label">Rớt</div>
+            <div className="stat-card-value" style={{background:'var(--gradient-danger)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent'}}>
+              {grandTotal.rot}
+            </div>
+            <div className="stat-card-sub">{grandTotal.siSo > 0 ? fmtPct(grandTotal.rot/grandTotal.siSo*100) : '0%'}</div>
+          </div>
+        </div>
+        <div style={{display:'flex', gap:'12px'}}>
+          <button className="btn btn-secondary" onClick={() => setShowModal(true)}>
+            ⚙️ Chọn 5 trường
+          </button>
+          <button className="btn btn-export-pdf" onClick={handleExportPdf} disabled={exporting}>
+            {exporting ? <><span className="spinner"></span> Đang xuất...</> : <>📄 Xuất PDF</>}
+          </button>
+          <button className="btn" style={{background: '#10b981', color: '#fff'}} onClick={handleExportExcel} disabled={exporting}>
+            📊 Xuất Excel
+          </button>
+        </div>
+      </div>
+
+      {showModal && (
+        <div className="modal-overlay">
+          <div className="modal-content animate-fade-in" style={{maxWidth: '500px'}}>
+            <h3 style={{marginBottom: '16px', fontSize: '1.2rem', fontWeight: 600}}>Chọn 5 trường hiển thị</h3>
+            <p style={{marginBottom: '16px', fontSize: '0.85rem', color: 'var(--text-muted)'}}>
+              Vui lòng tích chọn đúng 5 trường để hiển thị lên bảng báo cáo (Đã chọn: {selectedSchools.length}/5)
+            </p>
+            <div className="school-checkbox-list" style={{maxHeight: '300px', overflowY: 'auto', border: '1px solid var(--border-glass)', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px'}}>
+              {availableSchools.map((school, i) => {
+                const isSelected = selectedSchools.includes(school);
+                return (
+                  <label key={i} style={{display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '8px', borderRadius: '4px', background: isSelected ? 'rgba(6, 182, 212, 0.1)' : 'transparent'}}>
+                    <input 
+                      type="checkbox" 
+                      checked={isSelected}
+                      disabled={!isSelected && selectedSchools.length >= 5}
+                      onChange={() => {
+                        setSelectedSchools(prev => {
+                          if (prev.includes(school)) return prev.filter(s => s !== school);
+                          if (prev.length < 5) return [...prev, school];
+                          return prev;
+                        });
+                      }}
+                      style={{width: '18px', height: '18px'}}
+                    />
+                    <span style={{fontSize: '0.9rem', color: isSelected ? 'var(--accent-cyan)' : 'var(--text-primary)'}}>{school}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <div style={{marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '12px'}}>
+              <button className="btn btn-secondary" onClick={() => setShowModal(false)} disabled={selectedSchools.length > 0 && selectedSchools.length < 5}>Đóng</button>
+              <button className="btn btn-primary" onClick={() => {
+                if (selectedSchools.length === 5) setShowModal(false);
+                else alert('Vui lòng chọn đúng 5 trường!');
+              }}>Xác nhận</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="report-card" id="class-report-content">
+        <div className="report-title-section">
+          <div className="report-title-school">{schoolName}</div>
+          <div className="report-title-main">THỐNG KÊ CHI TIẾT TỈ LỆ TS 10</div>
+          <div className="report-title-year">NH:{schoolYear}</div>
+        </div>
+
+        <div className="report-table-wrapper">
+          <table className="report-table">
+            <thead>
+              <tr>
+                <th rowSpan="2">LỚP</th>
+                <th rowSpan="2">SĨ SỐ</th>
+                <th colSpan="2" className="col-group-border-left">ĐẬU</th>
+                <th colSpan="2" className="col-group-border-left">RỚT</th>
+                <th colSpan="2" className="col-group-border-left">ĐẬU NV1</th>
+                <th colSpan="2" className="col-group-border-left">ĐẬU NV2</th>
+                <th colSpan="2" className="col-group-border-left">ĐẬU NV3</th>
+                {topSchools.map(s => (
+                  <th colSpan="2" className="col-group-border-left" key={s}>{s}</th>
+                ))}
+                <th colSpan="2" className="col-group-border-left">KHÁC</th>
+              </tr>
+              <tr>
+                {/* ĐẬU */}<th className="col-group-border-left">SL</th><th>TL</th>
+                {/* RỚT */}<th className="col-group-border-left">SL</th><th>TL</th>
+                {/* NV1 */}<th className="col-group-border-left">SL</th><th>TL</th>
+                {/* NV2 */}<th className="col-group-border-left">SL</th><th>TL</th>
+                {/* NV3 */}<th className="col-group-border-left">SL</th><th>TL</th>
+                {topSchools.map(s => (
+                  <React.Fragment key={s}>
+                    <th className="col-group-border-left">SL</th><th>TL</th>
+                  </React.Fragment>
+                ))}
+                <th className="col-group-border-left">SL</th><th>TL</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.map((s, i) => (
+                <tr key={i} className={i % 2 === 0 ? 'row-even' : 'row-odd'}>
+                  <td style={{fontWeight:600}}>{s.lop}</td>
+                  <td>{s.siSo}</td>
+                  <td className="col-group-border-left highlight-green">{s.dau}</td>
+                  <td className="highlight-green">{fmtPct(s.dauPct)}</td>
+                  <td className="col-group-border-left highlight-red">{s.rot}</td>
+                  <td className="highlight-red">{fmtPct(s.rotPct)}</td>
+                  <td className="col-group-border-left">{s.dauNV1}</td>
+                  <td>{fmtPct(s.dauNV1Pct)}</td>
+                  <td className="col-group-border-left">{s.dauNV2}</td>
+                  <td>{fmtPct(s.dauNV2Pct)}</td>
+                  <td className="col-group-border-left">{s.dauNV3}</td>
+                  <td>{fmtPct(s.dauNV3Pct)}</td>
+                  {topSchools.map(sch => (
+                    <React.Fragment key={sch}>
+                      <td className="col-group-border-left">{s.schoolDist[sch] || 0}</td>
+                      <td>{s.siSo > 0 ? fmtPct((s.schoolDist[sch]||0)/s.siSo*100) : '0,0%'}</td>
+                    </React.Fragment>
+                  ))}
+                  <td className="col-group-border-left">{s.schoolDist['KHÁC'] || 0}</td>
+                  <td>{s.siSo > 0 ? fmtPct((s.schoolDist['KHÁC']||0)/s.siSo*100) : '0,0%'}</td>
+                </tr>
+              ))}
+              {/* Grand total row */}
+              <tr className="row-grand-total">
+                <td style={{fontWeight:700}}>T.TRƯỜNG</td>
+                <td>{grandTotal.siSo}</td>
+                <td className="col-group-border-left">{grandTotal.dau}</td>
+                <td>{grandTotal.siSo > 0 ? fmtPct(grandTotal.dau/grandTotal.siSo*100) : '0,0%'}</td>
+                <td className="col-group-border-left">{grandTotal.rot}</td>
+                <td>{grandTotal.siSo > 0 ? fmtPct(grandTotal.rot/grandTotal.siSo*100) : '0,0%'}</td>
+                <td className="col-group-border-left">{grandTotal.dauNV1}</td>
+                <td>{grandTotal.siSo > 0 ? fmtPct(grandTotal.dauNV1/grandTotal.siSo*100) : '0,0%'}</td>
+                <td className="col-group-border-left">{grandTotal.dauNV2}</td>
+                <td>{grandTotal.siSo > 0 ? fmtPct(grandTotal.dauNV2/grandTotal.siSo*100) : '0,0%'}</td>
+                <td className="col-group-border-left">{grandTotal.dauNV3}</td>
+                <td>{grandTotal.siSo > 0 ? fmtPct(grandTotal.dauNV3/grandTotal.siSo*100) : '0,0%'}</td>
+                {topSchools.map(sch => (
+                  <React.Fragment key={sch}>
+                    <td className="col-group-border-left">{grandTotal.schoolDist[sch] || 0}</td>
+                    <td>{grandTotal.siSo > 0 ? fmtPct((grandTotal.schoolDist[sch]||0)/grandTotal.siSo*100) : '0,0%'}</td>
+                  </React.Fragment>
+                ))}
+                <td className="col-group-border-left">{grandTotal.schoolDist['KHÁC'] || 0}</td>
+                <td>{grandTotal.siSo > 0 ? fmtPct((grandTotal.schoolDist['KHÁC']||0)/grandTotal.siSo*100) : '0,0%'}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="pdf-footer" style={{padding: '16px 28px', textAlign: 'right', fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic'}}>
+          <div style={{marginBottom: '4px'}}>Ngày xuất báo cáo: {new Date().toLocaleDateString('vi-VN')}</div>
+          {reporterName && <div>Người báo cáo: <strong style={{color:'var(--text-primary)'}}>{reporterName}</strong></div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ================================================================
+// 10. COMPONENT: DETAILED SCHOOL REPORT (h7,8 - placeholder)
+// ================================================================
+function DetailedSchoolReport() {
+  const { students, teachers, thresholds, thresholdsChuyen, thresholdsTichHop, schoolName, schoolYear, reporterName } = useData();
+  const [exporting, setExporting] = React.useState(false);
+
+  // Tổng hợp kết quả thi chi tiết - toàn trường
+  // Phân tích theo từng môn, từng lớp
+  const detailedStats = React.useMemo(() => {
+    const subjects = ['TOÁN', 'VĂN', 'ANH'];
+    const classMap = {};
+    students.forEach(s => {
+      if (!classMap[s.lop]) classMap[s.lop] = [];
+      classMap[s.lop].push(s);
+    });
+    const classes = Object.keys(classMap).sort((a,b) => {
+      const nA = parseInt(a.replace(/\D/g,'')) || 0;
+      const nB = parseInt(b.replace(/\D/g,'')) || 0;
+      return nA - nB || a.localeCompare(b);
+    });
+
+    const result = {};
+    subjects.forEach(subject => {
+      const subjectKey = subject === 'TOÁN' ? 'diemToan' : subject === 'VĂN' ? 'diemVan' : 'diemNgoaiNgu';
+      result[subject] = classes.map(cls => {
+        const classStudents = classMap[cls];
+        const sl = classStudents.length;
+        let gioi = 0, kha = 0, tb = 0, yeu = 0, kem = 0, totalScore = 0;
+        classStudents.forEach(s => {
+          const score = s[subjectKey];
+          totalScore += score;
+          if (score >= 8) gioi++;
+          else if (score >= 6.5) kha++;
+          else if (score >= 5) tb++;
+          else if (score >= 3.5) yeu++;
+          else kem++;
+        });
+        const trenTB = gioi + kha + tb;
+        const duoiTB = yeu + kem;
+        const dbq = sl > 0 ? totalScore / sl : 0;
+        return {
+          lop: cls, sl, gioi, kha, tb, yeu, kem, trenTB, duoiTB, dbq,
+          gioiPct: sl > 0 ? gioi/sl*100 : 0,
+          khaPct: sl > 0 ? kha/sl*100 : 0,
+          tbPct: sl > 0 ? tb/sl*100 : 0,
+          yeuPct: sl > 0 ? yeu/sl*100 : 0,
+          kemPct: sl > 0 ? kem/sl*100 : 0,
+          trenTBPct: sl > 0 ? trenTB/sl*100 : 0,
+          duoiTBPct: sl > 0 ? duoiTB/sl*100 : 0,
+        };
+      });
+    });
+    return result;
+  }, [students]);
+
+  const fmt = (n) => n.toFixed(2).replace('.', ',');
+  const fmtPct = (n) => n.toFixed(1).replace('.', ',') + '%';
+
+  const handleExportPdf = async () => {
+    setExporting(true);
+    try {
+      await PdfExport.exportToPdf('detailed-report-content', `ThongKe_ChiTiet_ToanTruong_${schoolYear}`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportExcel = () => {
+    ExcelExport.exportContainer('detailed-report-content', `ThongKe_ChiTiet_ToanTruong_${schoolYear}`);
+  };
+
+  const calcTotal = (subjectRows) => {
+    const t = { sl:0, gioi:0, kha:0, tb:0, yeu:0, kem:0, trenTB:0, duoiTB:0, totalScore:0 };
+    subjectRows.forEach(r => {
+      t.sl += r.sl; t.gioi += r.gioi; t.kha += r.kha; t.tb += r.tb;
+      t.yeu += r.yeu; t.kem += r.kem; t.trenTB += r.trenTB; t.duoiTB += r.duoiTB;
+      t.totalScore += r.dbq * r.sl;
+    });
+    t.dbq = t.sl > 0 ? t.totalScore / t.sl : 0;
+    return t;
+  };
+
+  return (
+    <div className="report-container animate-fade-in">
+      <div className="page-header">
+        <h2>📊 Thống kê điểm chi tiết Toán - Văn - Anh</h2>
+        <p>Phân tích chi tiết điểm từng môn theo lớp</p>
+      </div>
+
+      <div className="report-actions">
+        <div></div>
+        <div style={{display:'flex', gap:'12px'}}>
+          <button className="btn btn-export-pdf" onClick={handleExportPdf} disabled={exporting}>
+            {exporting ? <><span className="spinner"></span> Đang xuất...</> : <>📄 Xuất PDF</>}
+          </button>
+          <button className="btn" style={{background: '#10b981', color: '#fff'}} onClick={handleExportExcel} disabled={exporting}>
+            📊 Xuất Excel
+          </button>
+        </div>
+      </div>
+
+      <div className="report-card" id="detailed-report-content">
+        <div className="report-title-section">
+          <div className="report-title-school">{schoolName}</div>
+          <div className="report-title-main">THỐNG KÊ KẾT QUẢ THI CHI TIẾT - TOÀN TRƯỜNG</div>
+          <div className="report-title-year">NĂM HỌC {schoolYear}</div>
+        </div>
+
+        {['TOÁN', 'VĂN', 'ANH'].map(subject => {
+          const rows = detailedStats[subject] || [];
+          const total = calcTotal(rows);
+          return (
+            <div key={subject} style={{marginBottom: '20px'}}>
+              <div className="report-table-wrapper">
+                <table className="report-table">
+                  <thead>
+                    <tr>
+                      <th colSpan="16" style={{background: 'rgba(139,92,246,0.12)', color: 'var(--accent-purple)', fontSize: '0.95rem'}}>
+                        MÔN {subject}
+                      </th>
+                    </tr>
+                    <tr>
+                      <th rowSpan="2">LỚP</th>
+                      <th rowSpan="2">SL</th>
+                      <th colSpan="2" className="col-group-border-left">GIỎI (≥8)</th>
+                      <th colSpan="2" className="col-group-border-left">KHÁ (≥6.5)</th>
+                      <th colSpan="2" className="col-group-border-left">TB (≥5)</th>
+                      <th colSpan="2" className="col-group-border-left">YẾU (≥3.5)</th>
+                      <th colSpan="2" className="col-group-border-left">KÉM (&lt;3.5)</th>
+                      <th colSpan="2" className="col-group-border-left">TRÊN TB</th>
+                      <th colSpan="2" className="col-group-border-left">DƯỚI TB</th>
+                      <th rowSpan="2" className="col-group-border-left">ĐBQ</th>
+                    </tr>
+                    <tr>
+                      <th className="col-group-border-left">SL</th><th>TL</th>
+                      <th className="col-group-border-left">SL</th><th>TL</th>
+                      <th className="col-group-border-left">SL</th><th>TL</th>
+                      <th className="col-group-border-left">SL</th><th>TL</th>
+                      <th className="col-group-border-left">SL</th><th>TL</th>
+                      <th className="col-group-border-left">SL</th><th>TL</th>
+                      <th className="col-group-border-left">SL</th><th>TL</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => (
+                      <tr key={i} className={i % 2 === 0 ? 'row-even' : 'row-odd'}>
+                        <td style={{fontWeight:600}}>{r.lop}</td>
+                        <td>{r.sl}</td>
+                        <td className="col-group-border-left highlight-green">{r.gioi}</td>
+                        <td className="highlight-green">{fmtPct(r.gioiPct)}</td>
+                        <td className="col-group-border-left">{r.kha}</td>
+                        <td>{fmtPct(r.khaPct)}</td>
+                        <td className="col-group-border-left">{r.tb}</td>
+                        <td>{fmtPct(r.tbPct)}</td>
+                        <td className="col-group-border-left highlight-orange">{r.yeu}</td>
+                        <td className="highlight-orange">{fmtPct(r.yeuPct)}</td>
+                        <td className="col-group-border-left highlight-red">{r.kem}</td>
+                        <td className="highlight-red">{fmtPct(r.kemPct)}</td>
+                        <td className="col-group-border-left highlight-green">{r.trenTB}</td>
+                        <td className="highlight-green">{fmtPct(r.trenTBPct)}</td>
+                        <td className="col-group-border-left highlight-red">{r.duoiTB}</td>
+                        <td className="highlight-red">{fmtPct(r.duoiTBPct)}</td>
+                        <td className="col-group-border-left highlight-orange">{fmt(r.dbq)}</td>
+                      </tr>
+                    ))}
+                    <tr className="row-total">
+                      <td style={{fontWeight:700}}>TOÀN TRƯỜNG</td>
+                      <td>{total.sl}</td>
+                      <td className="col-group-border-left">{total.gioi}</td>
+                      <td>{total.sl > 0 ? fmtPct(total.gioi/total.sl*100) : '0,0%'}</td>
+                      <td className="col-group-border-left">{total.kha}</td>
+                      <td>{total.sl > 0 ? fmtPct(total.kha/total.sl*100) : '0,0%'}</td>
+                      <td className="col-group-border-left">{total.tb}</td>
+                      <td>{total.sl > 0 ? fmtPct(total.tb/total.sl*100) : '0,0%'}</td>
+                      <td className="col-group-border-left">{total.yeu}</td>
+                      <td>{total.sl > 0 ? fmtPct(total.yeu/total.sl*100) : '0,0%'}</td>
+                      <td className="col-group-border-left">{total.kem}</td>
+                      <td>{total.sl > 0 ? fmtPct(total.kem/total.sl*100) : '0,0%'}</td>
+                      <td className="col-group-border-left">{total.trenTB}</td>
+                      <td>{total.sl > 0 ? fmtPct(total.trenTB/total.sl*100) : '0,0%'}</td>
+                      <td className="col-group-border-left">{total.duoiTB}</td>
+                      <td>{total.sl > 0 ? fmtPct(total.duoiTB/total.sl*100) : '0,0%'}</td>
+                      <td className="col-group-border-left">{fmt(total.dbq)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
+
+        <div className="pdf-footer" style={{padding: '16px 28px', textAlign: 'right', fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic'}}>
+          <div style={{marginBottom: '4px'}}>Ngày xuất báo cáo: {new Date().toLocaleDateString('vi-VN')}</div>
+          {reporterName && <div>Người báo cáo: <strong style={{color:'var(--text-primary)'}}>{reporterName}</strong></div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ================================================================
+// 11. COMPONENT: PASS/FAIL LIST (h9 - placeholder with basic list)
+// ================================================================
+function PassFailList() {
+  const { students, thresholds, thresholdsChuyen, thresholdsTichHop, schoolName, schoolYear, reporterName } = useData();
+  const [filter, setFilter] = React.useState('all');
+  const [classFilter, setClassFilter] = React.useState('all');
+  const [exporting, setExporting] = React.useState(false);
+
+  const classes = React.useMemo(() => {
+    const set = new Set(students.map(s => s.lop));
+    return Array.from(set).sort((a,b) => {
+      const nA = parseInt(a.replace(/\D/g,'')) || 0;
+      const nB = parseInt(b.replace(/\D/g,'')) || 0;
+      return nA - nB || a.localeCompare(b);
+    });
+  }, [students]);
+
+  const list = React.useMemo(() =>
+    DataProcessor.getPassFailList(students, thresholds, thresholdsChuyen, thresholdsTichHop, filter, classFilter),
+    [students, thresholds, thresholdsChuyen, thresholdsTichHop, filter, classFilter]
+  );
+
+  const passCount = list.filter(s => s.status === 'pass').length;
+  const failCount = list.filter(s => s.status === 'fail').length;
+  const fmt = (n) => n.toFixed(2).replace('.', ',');
+
+  const handleExportPdf = async () => {
+    setExporting(true);
+    try {
+      await PdfExport.exportToPdf('passfail-report-content', `DanhSach_Dau_Rot_${schoolYear}`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportExcel = () => {
+    ExcelExport.exportContainer('passfail-report-content', `DanhSach_Dau_Rot_${schoolYear}`);
+  };
+
+  const statusLabel = filter === 'pass' ? 'ĐẬU' : filter === 'fail' ? 'RỚT' : 'ĐẬU - RỚT';
+
+  return (
+    <div className="report-container animate-fade-in">
+      <div className="page-header">
+        <h2>📋 Danh sách Học sinh Đậu - Rớt</h2>
+        <p>Danh sách chi tiết kết quả xét tuyển theo điểm chuẩn</p>
+      </div>
+
+      <div className="filter-bar">
+        <div className="setting-group">
+          <label>Trạng thái:</label>
+          <select value={filter} onChange={e => setFilter(e.target.value)}>
+            <option value="all">Tất cả</option>
+            <option value="pass">Đậu</option>
+            <option value="fail">Rớt</option>
+          </select>
+        </div>
+        <div className="setting-group">
+          <label>Lớp:</label>
+          <select value={classFilter} onChange={e => setClassFilter(e.target.value)}>
+            <option value="all">Tất cả lớp</option>
+            {classes.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div style={{flex:1}}></div>
+        <span style={{fontSize:'0.82rem', color:'var(--text-muted)'}}>
+          Tìm thấy: <strong style={{color:'var(--text-primary)'}}>{list.length}</strong> HS
+          {filter === 'all' && ` (Đậu: ${passCount}, Rớt: ${failCount})`}
+        </span>
+        <div style={{display:'flex', gap:'12px'}}>
+          <button className="btn btn-export-pdf" onClick={handleExportPdf} disabled={exporting}>
+            {exporting ? <><span className="spinner"></span> Đang xuất...</> : <>📄 Xuất PDF</>}
+          </button>
+          <button className="btn" style={{background: '#10b981', color: '#fff'}} onClick={handleExportExcel} disabled={exporting}>
+            📊 Xuất Excel
+          </button>
+        </div>
+      </div>
+
+      <div className="report-card" id="passfail-report-content">
+        <div className="report-title-section">
+          <div className="report-title-school">{schoolName}</div>
+          <div className="report-title-main">DANH SÁCH HỌC SINH {statusLabel}</div>
+          <div className="report-title-year">TUYỂN SINH 10 - NĂM HỌC {schoolYear}
+            {classFilter !== 'all' ? ` - LỚP ${classFilter}` : ''}
+          </div>
+        </div>
+
+        <div className="report-table-wrapper">
+          <table className="report-table">
+            <thead>
+              <tr>
+                <th>STT</th>
+                <th>HỌ VÀ TÊN</th>
+                <th>LỚP</th>
+                <th>TOÁN</th>
+                <th>VĂN</th>
+                <th>N.NGỮ</th>
+                <th>CHUYÊN</th>
+                <th>UTKK</th>
+                <th>TỔNG</th>
+                <th>KẾT QUẢ</th>
+                <th>HỆ</th>
+                <th>ĐẬU NV</th>
+                <th>TRƯỜNG TRÚNG TUYỂN</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.length === 0 ? (
+                <tr><td colSpan="13" style={{padding:'40px',color:'var(--text-muted)'}}>Không có dữ liệu</td></tr>
+              ) : (
+                list.map((s, i) => (
+                  <tr key={i}>
+                    <td>{i + 1}</td>
+                    <td className="text-left" style={{fontWeight:500, whiteSpace:'nowrap'}}>{s.hoTen}</td>
+                    <td>{s.lop}</td>
+                    <td>{fmt(s.diemToan)}</td>
+                    <td>{fmt(s.diemVan)}</td>
+                    <td>{fmt(s.diemNgoaiNgu)}</td>
+                    <td>{s.diemChuyen > 0 ? fmt(s.diemChuyen) : ''}</td>
+                    <td>{s.utkk > 0 ? fmt(s.utkk) : '0'}</td>
+                    <td style={{fontWeight:600}}>{fmt(s.total)}</td>
+                    <td>
+                      <span className={`pass-badge ${s.status === 'pass' ? 'pass' : 'fail'}`}>
+                        {s.status === 'pass' ? 'ĐẬU' : 'RỚT'}
+                      </span>
+                    </td>
+                    <td style={{fontWeight:600, color: 'var(--text-primary)'}}>
+                      {s.type === 'chuyen' ? 'Chuyên' : s.type === 'tichhop' ? 'Tích hợp' : 'Thường'}
+                    </td>
+                    <td style={{fontWeight:600, color: s.nv > 0 ? 'var(--accent-green)' : 'var(--text-muted)'}}>
+                      {s.nv > 0 ? `NV${s.nv}` : '—'}
+                    </td>
+                    <td className="text-left" style={{fontSize:'0.78rem', color: s.school ? 'var(--accent-cyan)' : 'var(--text-muted)'}}>
+                      {s.school || '—'}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="pdf-footer" style={{padding: '16px 28px', textAlign: 'right', fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic'}}>
+          <div style={{marginBottom: '4px'}}>Ngày xuất báo cáo: {new Date().toLocaleDateString('vi-VN')}</div>
+          {reporterName && <div>Người báo cáo: <strong style={{color:'var(--text-primary)'}}>{reporterName}</strong></div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ================================================================
+// 12. COMPONENT: GENERAL SUMMARY REPORT (New)
+// ================================================================
+function GeneralSummaryReport() {
+  const { students, thresholds, thresholdsChuyen, thresholdsTichHop, hoanThanhTHCS, setHoanThanhTHCS, tuyenThang, setTuyenThang, schoolName, schoolYear, reporterName } = useData();
+  const [exporting, setExporting] = React.useState(false);
+
+  const stats = React.useMemo(() => {
+    // Generate the full pass/fail list based on the new cascade algorithm
+    const list = DataProcessor.getPassFailList(students, thresholds, thresholdsChuyen, thresholdsTichHop, 'all', 'all');
+    const totalThi = list.length;
+    
+    let passCount = 0;
+    let failCount = 0;
+    let passChuyenCount = 0; // Includes both Chuyen and Tich hop
+    let nv1Count = 0;
+    let nv2Count = 0;
+    let nv3Count = 0;
+    const schoolCounts = {};
+
+    list.forEach(s => {
+      if (s.status === 'pass') {
+        passCount++;
+        
+        if (s.type === 'chuyen' || s.type === 'tichhop') {
+          passChuyenCount++;
+        } else {
+          // Regular admissions
+          if (s.nv === 1) nv1Count++;
+          if (s.nv === 2) nv2Count++;
+          if (s.nv === 3) nv3Count++;
+        }
+
+        if (s.school) {
+          schoolCounts[s.school] = (schoolCounts[s.school] || 0) + 1;
+        }
+      } else {
+        failCount++;
+      }
+    });
+
+    // Sort schools by count descending
+    const sortedSchools = Object.entries(schoolCounts).sort((a, b) => b[1] - a[1]);
+    const topSchools = sortedSchools.slice(0, 5); // Take top 5
+    const otherSchoolsCount = sortedSchools.slice(5).reduce((acc, curr) => acc + curr[1], 0);
+    
+    if (otherSchoolsCount > 0) {
+        topSchools.push(['KHÁC...', otherSchoolsCount]);
+    }
+
+    const htc = parseInt(hoanThanhTHCS) || 0;
+    const tt = parseInt(tuyenThang) || 0;
+    let passRatio = 0;
+    if (htc > 0) {
+        passRatio = ((passCount + tt) / htc) * 100;
+    }
+
+    return {
+      totalThi, passCount, failCount, passChuyenCount,
+      nv1Count, nv2Count, nv3Count, topSchools, passRatio
+    };
+  }, [students, thresholds, thresholdsChuyen, thresholdsTichHop, hoanThanhTHCS, tuyenThang]);
+
+  const fmtPct = (val, total) => total > 0 ? (val / total * 100).toFixed(1).replace('.', ',') + '%' : '0,0%';
+  const fmtNumPct = (pct) => pct.toFixed(1).replace('.', ',') + '%';
+
+  const handleExportExcel = () => {
+    ExcelExport.exportContainer('general-summary-content', `ThongKe_TongHop_${schoolYear}`);
+  };
+
+  const handleExportPdf = async () => {
+    setExporting(true);
+    try {
+      await PdfExport.exportToPdf('general-summary-content', `ThongKe_TongHop_${schoolYear}`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <div className="report-container animate-fade-in">
+      <div className="page-header">
+        <h2>📈 Thống kê Tổng hợp</h2>
+        <p>Bảng tổng hợp kết quả tuyển sinh 10 toàn trường</p>
+      </div>
+
+      <div className="filter-bar" style={{gap: '20px', alignItems: 'center'}}>
+        <div className="setting-group" style={{flexDirection: 'row', alignItems: 'center', gap: '10px'}}>
+          <label style={{margin:0}}>Số HS Hoàn thành THCS:</label>
+          <input type="number" value={hoanThanhTHCS} onChange={e => setHoanThanhTHCS(e.target.value)} style={{width: '100px', padding: '6px'}} min="0" placeholder="0" />
+        </div>
+        <div className="setting-group" style={{flexDirection: 'row', alignItems: 'center', gap: '10px'}}>
+          <label style={{margin:0}}>Số HS Tuyển thẳng:</label>
+          <input type="number" value={tuyenThang} onChange={e => setTuyenThang(e.target.value)} style={{width: '100px', padding: '6px'}} min="0" placeholder="0" />
+        </div>
+        <div style={{flex: 1}}></div>
+        <div style={{display:'flex', gap:'12px'}}>
+          <button className="btn btn-export-pdf" onClick={handleExportPdf} disabled={exporting}>
+            {exporting ? <><span className="spinner"></span> Đang xuất...</> : <>📄 Xuất PDF</>}
+          </button>
+          <button className="btn" style={{background: '#10b981', color: '#fff'}} onClick={handleExportExcel} disabled={exporting}>
+            📊 Xuất Excel
+          </button>
+        </div>
+      </div>
+
+      <div className="report-card" id="general-summary-content" style={{maxWidth: '800px', margin: '0 auto'}}>
+        <div className="report-title-section">
+          <div className="report-title-school">{schoolName}</div>
+          <div className="report-title-main">THỐNG KÊ TỔNG HỢP KẾT QUẢ TS10</div>
+          <div className="report-title-year">NĂM HỌC {schoolYear}</div>
+        </div>
+
+        <div className="report-table-wrapper">
+          <table className="report-table summary-table" style={{borderCollapse: 'collapse', width: '100%', border: '2px solid #000'}}>
+            <thead>
+              <tr>
+                <th style={{border: '1px solid #000', backgroundColor: '#e2efda', fontSize: '1.1rem', padding: '12px', color: '#000'}}>NỘI DUNG</th>
+                <th style={{border: '1px solid #000', backgroundColor: '#e2efda', fontSize: '1.1rem', padding: '12px', width: '120px', color: '#000'}}>SỐ LƯỢNG</th>
+                <th style={{border: '1px solid #000', backgroundColor: '#e2efda', fontSize: '1.1rem', padding: '12px', width: '120px', color: '#000'}}>TỈ LỆ</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{backgroundColor: '#fff2cc', color: '#000', fontWeight: 'bold'}}>
+                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px'}}>HS ĐẬU</td>
+                <td style={{border: '1px solid #000', textAlign: 'center'}}>{stats.passCount}</td>
+                <td style={{border: '1px solid #000', textAlign: 'center'}}>{fmtPct(stats.passCount, stats.totalThi)}</td>
+              </tr>
+              <tr style={{backgroundColor: '#fff2cc', color: '#000'}}>
+                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px', paddingLeft: '24px'}}>- ĐẬU CHUYÊN / TÍCH HỢP</td>
+                <td style={{border: '1px solid #000', textAlign: 'center', fontWeight: 'bold'}}>{stats.passChuyenCount}</td>
+                <td style={{border: '1px solid #000', textAlign: 'center'}}></td>
+              </tr>
+              <tr style={{backgroundColor: '#fff2cc', color: '#000', fontWeight: 'bold'}}>
+                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px'}}>HS RỚT</td>
+                <td style={{border: '1px solid #000', textAlign: 'center'}}>{stats.failCount}</td>
+                <td style={{border: '1px solid #000', textAlign: 'center'}}>{fmtPct(stats.failCount, stats.totalThi)}</td>
+              </tr>
+              
+              <tr style={{backgroundColor: '#ddebf7', color: '#000'}}>
+                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px'}}>HS ĐẬU NV1</td>
+                <td style={{border: '1px solid #000', textAlign: 'center', fontWeight: 'bold'}}>{stats.nv1Count}</td>
+                <td style={{border: '1px solid #000', textAlign: 'center', fontWeight: 'bold'}}>{fmtPct(stats.nv1Count, stats.totalThi)}</td>
+              </tr>
+              <tr style={{backgroundColor: '#ddebf7', color: '#000'}}>
+                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px'}}>HS ĐẬU NV2</td>
+                <td style={{border: '1px solid #000', textAlign: 'center', fontWeight: 'bold'}}>{stats.nv2Count}</td>
+                <td style={{border: '1px solid #000', textAlign: 'center', fontWeight: 'bold'}}>{fmtPct(stats.nv2Count, stats.totalThi)}</td>
+              </tr>
+              <tr style={{backgroundColor: '#ddebf7', color: '#000'}}>
+                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px'}}>HS ĐẬU NV3</td>
+                <td style={{border: '1px solid #000', textAlign: 'center', fontWeight: 'bold'}}>{stats.nv3Count}</td>
+                <td style={{border: '1px solid #000', textAlign: 'center', fontWeight: 'bold'}}>{fmtPct(stats.nv3Count, stats.totalThi)}</td>
+              </tr>
+
+              {stats.topSchools.map((s, i) => (
+                <tr key={i} style={{backgroundColor: '#fce4d6', color: '#000'}}>
+                  <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px'}}>HS ĐẬU THPT {s[0].toUpperCase()}</td>
+                  <td style={{border: '1px solid #000', textAlign: 'center', fontWeight: 'bold'}}>{s[1]}</td>
+                  <td style={{border: '1px solid #000', textAlign: 'center', fontWeight: 'bold'}}>{fmtPct(s[1], stats.totalThi)}</td>
+                </tr>
+              ))}
+              
+              <tr style={{backgroundColor: '#f4b084', color: '#000', fontWeight: 'bold', fontSize: '1.1rem'}}>
+                <td className="text-left" style={{border: '1px solid #000', padding: '12px'}}>TỈ LỆ ĐẬU TS10 / TỈ LỆ TN</td>
+                <td style={{border: '1px solid #000', textAlign: 'center'}} colSpan="2">{fmtNumPct(stats.passRatio)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="pdf-footer" style={{padding: '16px 28px', textAlign: 'right', fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic'}}>
+          <div style={{marginBottom: '4px'}}>Ngày xuất báo cáo: {new Date().toLocaleDateString('vi-VN')}</div>
+          {reporterName && <div>Người báo cáo: <strong style={{color:'var(--text-primary)'}}>{reporterName}</strong></div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ================================================================
+// 12. APP COMPONENT
+// ================================================================
+// 13. COMPONENT: USER GUIDE MODAL
+// ================================================================
+function UserGuideModal({ onClose }) {
+  return (
+    <div className="modal-overlay" style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+      <div className="modal-content" style={{backgroundColor: 'var(--bg-card)', padding: '24px', borderRadius: '12px', maxWidth: '800px', width: '90%', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', position: 'relative'}}>
+        <button onClick={onClose} style={{position: 'absolute', top: '16px', right: '16px', background: 'transparent', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-primary)'}}>✕</button>
+        <h2 style={{marginTop: 0, color: 'var(--accent-blue)', borderBottom: '2px solid var(--border-color)', paddingBottom: '12px'}}>📖 Hướng Dẫn Sử Dụng App Thống Kê Tuyển Sinh 10</h2>
+        
+        <div style={{lineHeight: 1.6, color: 'var(--text-primary)'}}>
+          <h3>1. Chuẩn bị Dữ liệu</h3>
+          <p>Hệ thống yêu cầu các file Excel theo đúng định dạng được cung cấp. Bạn có thể tải các file mẫu tại mục <strong>Upload Dữ Liệu</strong>.</p>
+          <ul>
+            <li><strong>Dữ liệu học sinh:</strong> Gồm danh sách, điểm thi, nguyện vọng (Thường, Chuyên, Tích hợp). Đã hỗ trợ tự động cắt chữ cuối cùng làm mã môn.</li>
+            <li><strong>Giáo viên - Lớp dạy:</strong> Phân công giáo viên chủ nhiệm hoặc bộ môn theo từng lớp.</li>
+            <li><strong>Điểm chuẩn:</strong> Các file điểm chuẩn Thường, Chuyên và Tích hợp từ Sở GD&ĐT.</li>
+          </ul>
+
+          <h3>2. Quy trình Xử lý Điểm</h3>
+          <p>Thuật toán xét Đậu - Rớt chạy theo phân tầng ưu tiên:</p>
+          <ol>
+            <li><strong>Xét hệ Chuyên:</strong> Dò nguyện vọng chuyên khớp mã môn. Nếu đủ điểm ➔ Đậu Chuyên.</li>
+            <li><strong>Xét hệ Tích hợp:</strong> Nếu không đậu Chuyên, xét nguyện vọng Tích hợp. Nếu đủ điểm ➔ Đậu Tích hợp.</li>
+            <li><strong>Xét hệ Thường:</strong> Cuối cùng, dùng điểm thi 3 môn + Điểm Ưu tiên để xét 3 nguyện vọng thường.</li>
+          </ol>
+
+          <h3>3. Xem và Xuất Báo cáo</h3>
+          <p>Sau khi Upload thành công toàn bộ dữ liệu, các thẻ Báo cáo bên tay trái sẽ sáng lên. Bạn có thể:</p>
+          <ul>
+            <li><strong>Tổng hợp KQ thi - Theo lớp:</strong> Thống kê phổ điểm (Giỏi, Khá, Trung bình...) theo từng lớp.</li>
+            <li><strong>Tổng hợp KQ chi tiết:</strong> Đánh giá toàn trường theo từng môn thi.</li>
+            <li><strong>Danh sách Đậu - Rớt:</strong> Tra cứu nhanh tình trạng trúng tuyển của từng học sinh.</li>
+            <li><strong>Thống kê Tổng hợp:</strong> Bảng tổng kết số liệu và tỉ lệ Đậu/Rớt, phân chia theo trường trúng tuyển, có tính toán Tỉ lệ đậu.</li>
+          </ul>
+          <p>Tất cả các báo cáo đều hỗ trợ xuất <strong>PDF</strong> và <strong>Excel</strong> ở góc trên bên phải màn hình.</p>
+          
+          <div style={{marginTop: '24px', padding: '12px', backgroundColor: '#e0f2fe', borderRadius: '8px', color: '#0369a1'}}>
+            <strong>Mẹo:</strong> Nếu muốn xóa toàn bộ để làm lại từ đầu, bấm nút "Xóa toàn bộ dữ liệu" màu đỏ bên dưới cột menu trái.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ================================================================
+function App() {
+  const [currentPage, setCurrentPage] = React.useState('upload');
+  const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const [isLightMode, setIsLightMode] = React.useState(true);
+  const [showGuide, setShowGuide] = React.useState(false);
+
+  React.useEffect(() => {
+    document.body.classList.toggle('light-theme', isLightMode);
+  }, []);
+
+  const toggleTheme = () => {
+    setIsLightMode(!isLightMode);
+    document.body.classList.toggle('light-theme', !isLightMode);
+  };
+
+  const renderPage = () => {
+    switch (currentPage) {
+      case 'upload': return <UploadSection />;
+      case 'teacher-report': return <TeacherScoreReport />;
+      case 'total3': return <Total3SubjectsReport />;
+      case 'class-report': return <ClassResultReport />;
+      case 'detailed-report': return <DetailedSchoolReport />;
+      case 'pass-fail': return <PassFailList />;
+      case 'general-summary': return <GeneralSummaryReport />;
+      default: return <UploadSection />;
+    }
+  };
+
+  return (
+    <DataProvider>
+      <div className="app-layout">
+        {showGuide && <UserGuideModal onClose={() => setShowGuide(false)} />}
+        
+        <div style={{position: 'absolute', top: '16px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000, color: 'red', fontWeight: 'bold', fontSize: '1.1rem'}}>
+          Made by Nguyễn Phi Hùng - Zalo 0938750424
+        </div>
+        <div style={{position: 'absolute', top: '16px', right: '24px', zIndex: 1000, display: 'flex', gap: '10px'}}>
+          <button className="btn" style={{padding: '6px 14px', borderRadius: '24px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', fontWeight: 'bold', background: '#3b82f6', color: '#fff'}} onClick={() => setShowGuide(true)}>
+            📖 Hướng Dẫn Sử Dụng
+          </button>
+          <button className="btn btn-secondary" style={{padding: '6px 14px', borderRadius: '24px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', fontWeight: 'bold'}} onClick={toggleTheme}>
+            {isLightMode ? '🌙 Chế độ Tối' : '☀️ Chế độ Sáng'}
+          </button>
+        </div>
+        <button
+          className="mobile-menu-btn"
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+        >
+          {sidebarOpen ? '✕' : '☰'}
+        </button>
+        <Sidebar
+          currentPage={currentPage}
+          onNavigate={setCurrentPage}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+        />
+        <main className="main-content">
+          {renderPage()}
+        </main>
+        <ToastContainer />
+      </div>
+    </DataProvider>
+  );
+}
+
+// ================================================================
+// 13. RENDER
+// ================================================================
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+  </script>
+</body>
+</html>
