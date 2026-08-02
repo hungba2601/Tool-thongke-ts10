@@ -584,7 +584,7 @@ const DataProcessor = {
     return words.map(w => w.charAt(0).toUpperCase()).join('');
   },
 
-  getPassFailList(students, thresholds, thresholdsChuyen = [], thresholdsTichHop = [], filter = 'all', classFilter = 'all') {
+  getPassFailList(students, thresholds, thresholdsChuyen = [], thresholdsTichHop = [], filter = 'all', classFilter = 'all', systemFilter = 'all') {
     let filtered = [...students];
     if (classFilter !== 'all') {
       filtered = filtered.filter(s => s.lop === classFilter);
@@ -593,8 +593,9 @@ const DataProcessor = {
       const result = this.determinePassFail(s, thresholds, thresholdsChuyen, thresholdsTichHop);
       return { ...s, ...result };
     }).filter(s => {
-      if (filter === 'pass') return s.status === 'pass';
-      if (filter === 'fail') return s.status === 'fail';
+      if (filter === 'pass' && s.status !== 'pass') return false;
+      if (filter === 'fail' && s.status !== 'fail') return false;
+      if (systemFilter !== 'all' && s.type !== systemFilter) return false;
       return true;
     });
   }
@@ -853,7 +854,8 @@ const ExcelExport = {
 const DataContext = React.createContext();
 
 function DataProvider({ children }) {
-  const [students, setStudents] = React.useState([]);
+  const [allStudents, setAllStudents] = React.useState([]);
+  const students = React.useMemo(() => allStudents.filter(s => s.nv1), [allStudents]);
   const [teachers, setTeachers] = React.useState([]);
   const [thresholds, setThresholds] = React.useState([]);
   const [thresholdsChuyen, setThresholdsChuyen] = React.useState([]);
@@ -878,7 +880,7 @@ function DataProvider({ children }) {
   }, []);
 
   const clearAll = React.useCallback(() => {
-    setStudents([]);
+    setAllStudents([]);
     setTeachers([]);
     setThresholds([]);
     setThresholdsChuyen([]);
@@ -886,7 +888,7 @@ function DataProvider({ children }) {
     addToast('Đã xóa toàn bộ dữ liệu', 'info');
   }, [addToast]);
 
-  const hasStudents = students.length > 0;
+  const hasStudents = allStudents.length > 0;
   const hasTeachers = teachers.length > 0;
   const hasThresholds = thresholds.length > 0;
   const hasThresholdsChuyen = thresholdsChuyen.length > 0;
@@ -895,7 +897,8 @@ function DataProvider({ children }) {
   const isFullDataReady = hasStudents && hasTeachers && (hasThresholds || hasThresholdsChuyen || hasThresholdsTichHop);
 
   const value = {
-    students, setStudents,
+    allStudents, setAllStudents,
+    students, setStudents: setAllStudents,
     teachers, setTeachers,
     thresholds, setThresholds,
     thresholdsChuyen, setThresholdsChuyen,
@@ -1023,7 +1026,7 @@ function Sidebar({ currentPage, onNavigate, isOpen, onClose }) {
 // 7. COMPONENT: UPLOAD SECTION
 // ================================================================
 function UploadSection() {
-  const { students, setStudents, teachers, setTeachers, thresholds, setThresholds,
+  const { allStudents, students, setStudents, teachers, setTeachers, thresholds, setThresholds,
           thresholdsChuyen, setThresholdsChuyen, thresholdsTichHop, setThresholdsTichHop,
           schoolName, setSchoolName, schoolYear, setSchoolYear, reporterName, setReporterName, addToast } = useData();
 
@@ -1077,7 +1080,7 @@ function UploadSection() {
     {
       type: 'student', cls: 'student', icon: '👨‍🎓',
       title: 'Dữ liệu Học sinh', desc: 'File danh sách học sinh với điểm thi',
-      data: students, countLabel: 'học sinh',
+      data: allStudents, countLabel: 'học sinh',
       onExport: () => ExcelTemplates.exportStudentTemplate(),
     },
     {
@@ -1951,6 +1954,7 @@ function PassFailList() {
   const { students, thresholds, thresholdsChuyen, thresholdsTichHop, schoolName, schoolYear, reporterName } = useData();
   const [filter, setFilter] = React.useState('all');
   const [classFilter, setClassFilter] = React.useState('all');
+  const [systemFilter, setSystemFilter] = React.useState('all');
   const [exporting, setExporting] = React.useState(false);
 
   const classes = React.useMemo(() => {
@@ -1963,8 +1967,8 @@ function PassFailList() {
   }, [students]);
 
   const list = React.useMemo(() =>
-    DataProcessor.getPassFailList(students, thresholds, thresholdsChuyen, thresholdsTichHop, filter, classFilter),
-    [students, thresholds, thresholdsChuyen, thresholdsTichHop, filter, classFilter]
+    DataProcessor.getPassFailList(students, thresholds, thresholdsChuyen, thresholdsTichHop, filter, classFilter, systemFilter),
+    [students, thresholds, thresholdsChuyen, thresholdsTichHop, filter, classFilter, systemFilter]
   );
 
   const passCount = list.filter(s => s.status === 'pass').length;
@@ -2007,6 +2011,15 @@ function PassFailList() {
           <select value={classFilter} onChange={e => setClassFilter(e.target.value)}>
             <option value="all">Tất cả lớp</option>
             {classes.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="setting-group">
+          <label>Hệ:</label>
+          <select value={systemFilter} onChange={e => setSystemFilter(e.target.value)}>
+            <option value="all">Tất cả</option>
+            <option value="thuong">Thường</option>
+            <option value="chuyen">Chuyên</option>
+            <option value="tichhop">Tích hợp thường</option>
           </select>
         </div>
         <div style={{flex:1}}></div>
@@ -2101,7 +2114,7 @@ function PassFailList() {
 // 12. COMPONENT: GENERAL SUMMARY REPORT (New)
 // ================================================================
 function GeneralSummaryReport() {
-  const { students, thresholds, thresholdsChuyen, thresholdsTichHop, hoanThanhTHCS, setHoanThanhTHCS, tuyenThang, setTuyenThang, schoolName, schoolYear, reporterName } = useData();
+  const { allStudents, students, thresholds, thresholdsChuyen, thresholdsTichHop, hoanThanhTHCS, setHoanThanhTHCS, tuyenThang, setTuyenThang, schoolName, schoolYear, reporterName } = useData();
   const [exporting, setExporting] = React.useState(false);
 
   const stats = React.useMemo(() => {
@@ -2111,7 +2124,8 @@ function GeneralSummaryReport() {
     
     let passCount = 0;
     let failCount = 0;
-    let passChuyenCount = 0; // Includes both Chuyen and Tich hop
+    let passChuyenCount = 0;
+    let passTichHopCount = 0;
     let nv1Count = 0;
     let nv2Count = 0;
     let nv3Count = 0;
@@ -2121,8 +2135,10 @@ function GeneralSummaryReport() {
       if (s.status === 'pass') {
         passCount++;
         
-        if (s.type === 'chuyen' || s.type === 'tichhop') {
+        if (s.type === 'chuyen') {
           passChuyenCount++;
+        } else if (s.type === 'tichhop') {
+          passTichHopCount++;
         } else {
           // Regular admissions
           if (s.nv === 1) nv1Count++;
@@ -2220,14 +2236,29 @@ function GeneralSummaryReport() {
               </tr>
             </thead>
             <tbody>
+              <tr style={{backgroundColor: '#e6e6ea', color: '#000', fontWeight: 'bold'}}>
+                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px'}}>SĨ SỐ HS LỚP 9 TOÀN TRƯỜNG</td>
+                <td style={{border: '1px solid #000', textAlign: 'center'}}>{allStudents ? allStudents.length : 0}</td>
+                <td style={{border: '1px solid #000', textAlign: 'center'}}>—</td>
+              </tr>
+              <tr style={{backgroundColor: '#e6e6ea', color: '#000', fontWeight: 'bold'}}>
+                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px'}}>HỌC SINH LỚP 9 THI TS10</td>
+                <td style={{border: '1px solid #000', textAlign: 'center'}}>{students ? students.length : 0}</td>
+                <td style={{border: '1px solid #000', textAlign: 'center'}}>{allStudents && allStudents.length > 0 ? fmtPct(students.length, allStudents.length) : '0,0%'}</td>
+              </tr>
               <tr style={{backgroundColor: '#fff2cc', color: '#000', fontWeight: 'bold'}}>
                 <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px'}}>HS ĐẬU</td>
                 <td style={{border: '1px solid #000', textAlign: 'center'}}>{stats.passCount}</td>
                 <td style={{border: '1px solid #000', textAlign: 'center'}}>{fmtPct(stats.passCount, stats.totalThi)}</td>
               </tr>
               <tr style={{backgroundColor: '#fff2cc', color: '#000'}}>
-                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px', paddingLeft: '24px'}}>- ĐẬU CHUYÊN / TÍCH HỢP</td>
+                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px', paddingLeft: '24px'}}>- ĐẬU CHUYÊN</td>
                 <td style={{border: '1px solid #000', textAlign: 'center', fontWeight: 'bold'}}>{stats.passChuyenCount}</td>
+                <td style={{border: '1px solid #000', textAlign: 'center'}}></td>
+              </tr>
+              <tr style={{backgroundColor: '#fff2cc', color: '#000'}}>
+                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px', paddingLeft: '24px'}}>- ĐẬU TÍCH HỢP THƯỜNG</td>
+                <td style={{border: '1px solid #000', textAlign: 'center', fontWeight: 'bold'}}>{stats.passTichHopCount}</td>
                 <td style={{border: '1px solid #000', textAlign: 'center'}}></td>
               </tr>
               <tr style={{backgroundColor: '#fff2cc', color: '#000', fontWeight: 'bold'}}>
