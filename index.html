@@ -29,18 +29,20 @@ const ExcelTemplates = {
       'STT', 'Họ và tên', 'Giới tính', 'Ngày sinh', 'Lớp',
       'Nguyện vọng 1 ( THƯỜNG )', 'Nguyện vọng 2 ( THƯỜNG )', 'Nguyện vọng 3 ( THƯỜNG )',
       'Mã môn chuyên', 'Nguyện vọng 1 ( CHUYÊN )', 'Nguyện vọng 2 ( CHUYÊN )',
+      'Nguyện vọng 1 ( TÍCH HỢP CHUYÊN )', 'Nguyện vọng 2 ( TÍCH HỢP CHUYÊN )',
       'Nguyện vọng 1 ( TÍCH HỢP THƯỜNG )', 'Nguyện vọng 2 ( TÍCH HỢP THƯỜNG )', 'Nguyện vọng 3 ( TÍCH HỢP THƯỜNG )',
       'Điểm Toán', 'Điểm Văn', 'Điểm Ngoại ngữ', 'Điểm chuyên', 'UTKK'
     ];
     const sampleData = [
-      [1, 'Nguyễn Văn A', 'Nam', '01/01/2011', '9A1', 'THPT Nguyễn Trung Trực', 'THPT Thanh Đa', '', '', '', '', '', '', '', 7.5, 6.0, 8.0, '', 0],
-      [2, 'Trần Thị B', 'Nữ', '15/03/2011', '9A1', 'THPT Trần Hưng Đạo', 'THPT Gò Vấp', 'THPT Thanh Đa', 'CVAN', 'THPT CHUYÊN TRẦN ĐẠI NGHĨA', 'THPT CHUYÊN LÊ HỒNG PHONG', '', '', '', 6.0, 7.5, 5.5, 7.0, 0.5],
+      [1, 'Nguyễn Văn A', 'Nam', '01/01/2011', '9A1', 'THPT Nguyễn Trung Trực', 'THPT Thanh Đa', '', '', '', '', '', '', '', '', '', 7.5, 6.0, 8.0, '', 0],
+      [2, 'Trần Thị B', 'Nữ', '15/03/2011', '9A1', 'THPT Trần Hưng Đạo', 'THPT Gò Vấp', 'THPT Thanh Đa', 'CVAN', 'THPT CHUYÊN TRẦN ĐẠI NGHĨA', 'THPT CHUYÊN LÊ HỒNG PHONG', 'THPT chuyên Trần Đại Nghĩa', '', '', '', '', 6.0, 7.5, 5.5, 7.0, 0.5],
     ];
     const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleData]);
     ws['!cols'] = [
       {wch:5}, {wch:22}, {wch:8}, {wch:12}, {wch:6},
       {wch:28}, {wch:28}, {wch:28},
       {wch:15}, {wch:28}, {wch:28},
+      {wch:35}, {wch:35},
       {wch:35}, {wch:35}, {wch:35},
       {wch:10}, {wch:10}, {wch:14}, {wch:12}, {wch:6}
     ];
@@ -250,14 +252,16 @@ const DataProcessor = {
         maMonChuyen: maMonChuyen,
         nv1Chuyen: String(row[keys[9]] || '').trim(),
         nv2Chuyen: String(row[keys[10]] || '').trim(),
-        nv1TichHop: String(row[keys[11]] || '').trim(),
-        nv2TichHop: String(row[keys[12]] || '').trim(),
-        nv3TichHop: String(row[keys[13]] || '').trim(),
-        diemToan: parseFloat(row[keys[14]]) || 0,
-        diemVan: parseFloat(row[keys[15]]) || 0,
-        diemNgoaiNgu: parseFloat(row[keys[16]]) || 0,
-        diemChuyen: parseFloat(row[keys[17]]) || 0,
-        utkk: parseFloat(row[keys[18]]) || 0,
+        nv1TichHopChuyen: String(row[keys[11]] || '').trim(),
+        nv2TichHopChuyen: String(row[keys[12]] || '').trim(),
+        nv1TichHop: String(row[keys[13]] || '').trim(),
+        nv2TichHop: String(row[keys[14]] || '').trim(),
+        nv3TichHop: String(row[keys[15]] || '').trim(),
+        diemToan: parseFloat(row[keys[16]]) || 0,
+        diemVan: parseFloat(row[keys[17]]) || 0,
+        diemNgoaiNgu: parseFloat(row[keys[18]]) || 0,
+        diemChuyen: parseFloat(row[keys[19]]) || 0,
+        utkk: parseFloat(row[keys[20]]) || 0,
       };
     }).filter(s => s.hoTen);
   },
@@ -382,7 +386,24 @@ const DataProcessor = {
       }
     }
 
-    // 2. Xét Tích Hợp
+    // 2. Xét Tích Hợp Chuyên (dùng điểm chuẩn Tích hợp + mã môn chuyên)
+    if (student.maMonChuyen && thresholdsTichHop.length > 0) {
+      const totalTichHop = this.getStudentTotalChuyenTichHop(student);
+      if (student.nv1TichHopChuyen) {
+        const th = thresholdsTichHop.find(t => t.school.toLowerCase() === student.nv1TichHopChuyen.toLowerCase());
+        if (th && totalTichHop >= th.nv1) {
+          return { status: 'pass', type: 'tichhop', nv: 1, school: student.nv1TichHopChuyen, total: totalTichHop };
+        }
+      }
+      if (student.nv2TichHopChuyen) {
+        const th = thresholdsTichHop.find(t => t.school.toLowerCase() === student.nv2TichHopChuyen.toLowerCase());
+        if (th && totalTichHop >= th.nv2) {
+          return { status: 'pass', type: 'tichhop', nv: 2, school: student.nv2TichHopChuyen, total: totalTichHop };
+        }
+      }
+    }
+
+    // 3. Xét Tích Hợp Thường
     if (thresholdsTichHop.length > 0) {
       const totalTichHop = this.getStudentTotalChuyenTichHop(student);
       if (student.nv1TichHop) {
@@ -605,7 +626,7 @@ const DataProcessor = {
 // 3. UTILITY: PDF EXPORT
 // ================================================================
 const PdfExport = {
-  async exportToPdf(elementId, filename, orientation = 'landscape', forceOnePage = false) {
+  async exportToPdf(elementId, filename, orientation = 'landscape', forceOnePage = false, customCloneWidth = null) {
     const element = document.getElementById(elementId);
     if (!element) return;
 
@@ -615,12 +636,18 @@ const PdfExport = {
       canvasScale = 1;
     }
     
+    const cloneWidth = customCloneWidth || (orientation === 'landscape' ? '1100px' : '750px');
+    // For custom clone widths, scale the PDF page width proportionally
+    const baseCloneWidthPx = orientation === 'landscape' ? 1100 : 750;
+    const actualCloneWidthPx = parseInt(cloneWidth);
+    const basePdfWidthMm = orientation === 'landscape' ? 297 : 210;
+    const pdfWidthMm = customCloneWidth ? Math.round(basePdfWidthMm * (actualCloneWidthPx / baseCloneWidthPx)) : basePdfWidthMm;
+
     let pdfFormat = 'a4';
     if (forceOnePage) {
       const w = element.offsetWidth;
       const h = element.offsetHeight;
       const ratio = h / w;
-      const pdfWidthMm = orientation === 'landscape' ? 297 : 210;
       // Calculate required height in mm, ensuring it's at least a standard A4 height
       const minHeight = orientation === 'landscape' ? 210 : 297;
       const requiredHeightMm = (pdfWidthMm - 20) * ratio; // -20 for left/right margins
@@ -640,7 +667,7 @@ const PdfExport = {
           const el = clonedDoc.getElementById(elementId);
           if (el) {
             // Force width so layout doesn't break in PDF
-            el.style.width = orientation === 'landscape' ? '1100px' : '750px';
+            el.style.width = cloneWidth;
             el.style.maxWidth = 'none';
             
             // Switch cloned doc to light theme
@@ -1539,7 +1566,7 @@ function ClassResultReport() {
   const handleExportPdf = async () => {
     setExporting(true);
     try {
-      await PdfExport.exportToPdf('class-report-content', `ThongKe_ChiTiet_TiLe_TS10_${schoolYear}`, 'landscape', true);
+      await PdfExport.exportToPdf('class-report-content', `ThongKe_ChiTiet_TiLe_TS10_${schoolYear}`, 'landscape', true, '1600px');
     } finally {
       setExporting(false);
     }
@@ -1651,7 +1678,7 @@ function ClassResultReport() {
       <div className="report-card" id="class-report-content">
         <div className="report-title-section">
           <div className="report-title-school">{schoolName}</div>
-          <div className="report-title-main">THỐNG KÊ CHI TIẾT TỈ LỆ TS 10</div>
+          <div className="report-title-main">TỔNG HỢP KẾT QUẢ THI THEO LỚP</div>
           <div className="report-title-year">NH:{schoolYear}</div>
         </div>
 
@@ -2085,7 +2112,7 @@ function PassFailList() {
                         {s.status === 'pass' ? 'ĐẬU' : 'RỚT'}
                       </span>
                     </td>
-                    <td style={{fontWeight:600, color: 'var(--text-primary)'}}>
+                    <td style={{fontWeight:600, color: s.type === 'chuyen' ? '#e53e3e' : 'var(--text-primary)'}}>
                       {s.type === 'chuyen' ? 'Chuyên' : s.type === 'tichhop' ? 'Tích hợp' : 'Thường'}
                     </td>
                     <td style={{fontWeight:600, color: s.nv > 0 ? 'var(--accent-green)' : 'var(--text-muted)'}}>
@@ -2163,18 +2190,18 @@ function GeneralSummaryReport() {
         topSchools.push(['KHÁC...', otherSchoolsCount]);
     }
 
-    const htc = parseInt(hoanThanhTHCS) || 0;
     const tt = parseInt(tuyenThang) || 0;
+    const totalStudents = allStudents ? allStudents.length : 0;
     let passRatio = 0;
-    if (htc > 0) {
-        passRatio = ((passCount + tt) / htc) * 100;
+    if (totalStudents > 0) {
+        passRatio = ((passCount + tt) / totalStudents) * 100;
     }
 
     return {
       totalThi, passCount, failCount, passChuyenCount,
       nv1Count, nv2Count, nv3Count, topSchools, passRatio
     };
-  }, [students, thresholds, thresholdsChuyen, thresholdsTichHop, hoanThanhTHCS, tuyenThang]);
+  }, [students, thresholds, thresholdsChuyen, thresholdsTichHop, allStudents, tuyenThang]);
 
   const fmtPct = (val, total) => total > 0 ? (val / total * 100).toFixed(1).replace('.', ',') + '%' : '0,0%';
   const fmtNumPct = (pct) => pct.toFixed(1).replace('.', ',') + '%';
@@ -2200,10 +2227,7 @@ function GeneralSummaryReport() {
       </div>
 
       <div className="filter-bar" style={{gap: '20px', alignItems: 'center'}}>
-        <div className="setting-group" style={{flexDirection: 'row', alignItems: 'center', gap: '10px'}}>
-          <label style={{margin:0}}>Số HS Hoàn thành THCS:</label>
-          <input type="number" value={hoanThanhTHCS} onChange={e => setHoanThanhTHCS(e.target.value)} style={{width: '100px', padding: '6px'}} min="0" placeholder="0" />
-        </div>
+
         <div className="setting-group" style={{flexDirection: 'row', alignItems: 'center', gap: '10px'}}>
           <label style={{margin:0}}>Số HS Tuyển thẳng:</label>
           <input type="number" value={tuyenThang} onChange={e => setTuyenThang(e.target.value)} style={{width: '100px', padding: '6px'}} min="0" placeholder="0" />
