@@ -386,19 +386,19 @@ const DataProcessor = {
       }
     }
 
-    // 2. Xét Tích Hợp Chuyên (dùng điểm chuẩn Tích hợp + mã môn chuyên)
-    if (student.maMonChuyen && thresholdsTichHop.length > 0) {
+    // 2. Xét Tích Hợp Chuyên theo Đề án 5695 (dùng điểm chuẩn Chuyên + mã môn chuyên)
+    if (student.maMonChuyen && thresholdsChuyen.length > 0) {
       const totalTichHop = this.getStudentTotalChuyenTichHop(student);
       if (student.nv1TichHopChuyen) {
-        const th = thresholdsTichHop.find(t => t.school.toLowerCase() === student.nv1TichHopChuyen.toLowerCase());
+        const th = thresholdsChuyen.find(t => t.school.toLowerCase() === student.nv1TichHopChuyen.toLowerCase() && t.maMon.toLowerCase() === student.maMonChuyen.toLowerCase());
         if (th && totalTichHop >= th.nv1) {
-          return { status: 'pass', type: 'tichhop', nv: 1, school: student.nv1TichHopChuyen, total: totalTichHop };
+          return { status: 'pass', type: 'tichhop_chuyen', nv: 1, school: student.nv1TichHopChuyen, total: totalTichHop };
         }
       }
       if (student.nv2TichHopChuyen) {
-        const th = thresholdsTichHop.find(t => t.school.toLowerCase() === student.nv2TichHopChuyen.toLowerCase());
+        const th = thresholdsChuyen.find(t => t.school.toLowerCase() === student.nv2TichHopChuyen.toLowerCase() && t.maMon.toLowerCase() === student.maMonChuyen.toLowerCase());
         if (th && totalTichHop >= th.nv2) {
-          return { status: 'pass', type: 'tichhop', nv: 2, school: student.nv2TichHopChuyen, total: totalTichHop };
+          return { status: 'pass', type: 'tichhop_chuyen', nv: 2, school: student.nv2TichHopChuyen, total: totalTichHop };
         }
       }
     }
@@ -2046,6 +2046,7 @@ function PassFailList() {
             <option value="all">Tất cả</option>
             <option value="thuong">Thường</option>
             <option value="chuyen">Chuyên</option>
+            <option value="tichhop_chuyen">Tích hợp chuyên</option>
             <option value="tichhop">Tích hợp thường</option>
           </select>
         </div>
@@ -2112,8 +2113,8 @@ function PassFailList() {
                         {s.status === 'pass' ? 'ĐẬU' : 'RỚT'}
                       </span>
                     </td>
-                    <td style={{fontWeight:600, color: s.type === 'chuyen' ? '#e53e3e' : 'var(--text-primary)'}}>
-                      {s.type === 'chuyen' ? 'Chuyên' : s.type === 'tichhop' ? 'Tích hợp' : 'Thường'}
+                    <td style={{fontWeight:600, color: s.type === 'chuyen' ? '#e53e3e' : (s.type === 'tichhop_chuyen' || s.type === 'tichhop' ? '#10b981' : 'var(--text-primary)')}}>
+                      {s.type === 'chuyen' ? 'Chuyên' : s.type === 'tichhop_chuyen' ? 'TH Chuyên' : s.type === 'tichhop' ? 'TH Thường' : 'Thường'}
                     </td>
                     <td style={{fontWeight:600, color: s.nv > 0 ? 'var(--accent-green)' : 'var(--text-muted)'}}>
                       {s.nv > 0 ? `NV${s.nv}` : '—'}
@@ -2152,6 +2153,7 @@ function GeneralSummaryReport() {
     let passCount = 0;
     let failCount = 0;
     let passChuyenCount = 0;
+    let passTichHopChuyenCount = 0;
     let passTichHopCount = 0;
     let nv1Count = 0;
     let nv2Count = 0;
@@ -2164,6 +2166,8 @@ function GeneralSummaryReport() {
         
         if (s.type === 'chuyen') {
           passChuyenCount++;
+        } else if (s.type === 'tichhop_chuyen') {
+          passTichHopChuyenCount++;
         } else if (s.type === 'tichhop') {
           passTichHopCount++;
         } else {
@@ -2198,7 +2202,7 @@ function GeneralSummaryReport() {
     }
 
     return {
-      totalThi, passCount, failCount, passChuyenCount,
+      totalThi, passCount, failCount, passChuyenCount, passTichHopChuyenCount, passTichHopCount,
       nv1Count, nv2Count, nv3Count, topSchools, passRatio
     };
   }, [students, thresholds, thresholdsChuyen, thresholdsTichHop, allStudents, tuyenThang]);
@@ -2266,13 +2270,23 @@ function GeneralSummaryReport() {
                 <td style={{border: '1px solid #000', textAlign: 'center'}}>—</td>
               </tr>
               <tr style={{backgroundColor: '#e6e6ea', color: '#000', fontWeight: 'bold'}}>
+                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px'}}>HS LỚP 9 KHÔNG ĐK THI TS10</td>
+                <td style={{border: '1px solid #000', textAlign: 'center'}}>{allStudents ? allStudents.length - students.length : 0}</td>
+                <td style={{border: '1px solid #000', textAlign: 'center'}}>{allStudents && allStudents.length > 0 ? fmtPct(allStudents.length - students.length, allStudents.length) : '0,0%'}</td>
+              </tr>
+              <tr style={{backgroundColor: '#e6e6ea', color: '#000', fontWeight: 'bold'}}>
                 <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px'}}>HỌC SINH LỚP 9 THI TS10</td>
                 <td style={{border: '1px solid #000', textAlign: 'center'}}>{students ? students.length : 0}</td>
                 <td style={{border: '1px solid #000', textAlign: 'center'}}>{allStudents && allStudents.length > 0 ? fmtPct(students.length, allStudents.length) : '0,0%'}</td>
               </tr>
               <tr style={{backgroundColor: '#fff2cc', color: '#000', fontWeight: 'bold'}}>
+                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px'}}>HS RỚT</td>
+                <td style={{border: '1px solid #000', textAlign: 'center', color: '#d32f2f'}}>{stats.failCount}</td>
+                <td style={{border: '1px solid #000', textAlign: 'center'}}>{fmtPct(stats.failCount, stats.totalThi)}</td>
+              </tr>
+              <tr style={{backgroundColor: '#fff2cc', color: '#000', fontWeight: 'bold'}}>
                 <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px'}}>HS ĐẬU</td>
-                <td style={{border: '1px solid #000', textAlign: 'center'}}>{stats.passCount}</td>
+                <td style={{border: '1px solid #000', textAlign: 'center', color: '#d32f2f'}}>{stats.passCount}</td>
                 <td style={{border: '1px solid #000', textAlign: 'center'}}>{fmtPct(stats.passCount, stats.totalThi)}</td>
               </tr>
               <tr style={{backgroundColor: '#fff2cc', color: '#000'}}>
@@ -2281,14 +2295,14 @@ function GeneralSummaryReport() {
                 <td style={{border: '1px solid #000', textAlign: 'center'}}></td>
               </tr>
               <tr style={{backgroundColor: '#fff2cc', color: '#000'}}>
+                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px', paddingLeft: '24px'}}>- ĐẬU TÍCH HỢP CHUYÊN</td>
+                <td style={{border: '1px solid #000', textAlign: 'center', fontWeight: 'bold'}}>{stats.passTichHopChuyenCount}</td>
+                <td style={{border: '1px solid #000', textAlign: 'center'}}></td>
+              </tr>
+              <tr style={{backgroundColor: '#fff2cc', color: '#000'}}>
                 <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px', paddingLeft: '24px'}}>- ĐẬU TÍCH HỢP THƯỜNG</td>
                 <td style={{border: '1px solid #000', textAlign: 'center', fontWeight: 'bold'}}>{stats.passTichHopCount}</td>
                 <td style={{border: '1px solid #000', textAlign: 'center'}}></td>
-              </tr>
-              <tr style={{backgroundColor: '#fff2cc', color: '#000', fontWeight: 'bold'}}>
-                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px'}}>HS RỚT</td>
-                <td style={{border: '1px solid #000', textAlign: 'center'}}>{stats.failCount}</td>
-                <td style={{border: '1px solid #000', textAlign: 'center'}}>{fmtPct(stats.failCount, stats.totalThi)}</td>
               </tr>
               
               <tr style={{backgroundColor: '#ddebf7', color: '#000'}}>
@@ -2356,9 +2370,10 @@ function UserGuideModal({ onClose }) {
           <h3>2. Quy trình Xử lý Điểm</h3>
           <p>Thuật toán xét Đậu - Rớt chạy theo phân tầng ưu tiên:</p>
           <ol>
-            <li><strong>Xét hệ Chuyên:</strong> Dò nguyện vọng chuyên khớp mã môn. Nếu đủ điểm ➔ Đậu Chuyên.</li>
-            <li><strong>Xét hệ Tích hợp:</strong> Nếu không đậu Chuyên, xét nguyện vọng Tích hợp. Nếu đủ điểm ➔ Đậu Tích hợp.</li>
-            <li><strong>Xét hệ Thường:</strong> Cuối cùng, dùng điểm thi 3 môn + Điểm Ưu tiên để xét 3 nguyện vọng thường.</li>
+            <li><strong>Xét hệ Chuyên:</strong> Dò nguyện vọng chuyên khớp tên trường và mã môn với điểm chuẩn Chuyên. Nếu đủ điểm ➔ Đậu Chuyên.</li>
+            <li><strong>Xét hệ Tích hợp Chuyên:</strong> Nếu không đậu Chuyên, dò NV Tích hợp Chuyên khớp tên trường và mã môn với điểm chuẩn Chuyên (theo Đề án 5695). Nếu đủ điểm ➔ Đậu TH Chuyên.</li>
+            <li><strong>Xét hệ Tích hợp Thường:</strong> Nếu không đậu, dò NV Tích hợp Thường khớp tên trường với điểm chuẩn Tích hợp. Nếu đủ điểm ➔ Đậu TH Thường.</li>
+            <li><strong>Xét hệ Thường:</strong> Cuối cùng, dùng điểm thi 3 môn + Điểm Ưu tiên để xét 3 nguyện vọng thường với điểm chuẩn Thường.</li>
           </ol>
 
           <h3>3. Xem và Xuất Báo cáo</h3>
