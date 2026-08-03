@@ -15,6 +15,10 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <!-- html2pdf for PDF export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Chart.js DataLabels Plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
 </head>
 <body class="light-theme">
   <div id="root"></div>
@@ -1252,6 +1256,7 @@ function UploadSection() {
 function TeacherScoreReport() {
   const { students, teachers, schoolName, schoolYear, reporterName } = useData();
   const [exporting, setExporting] = React.useState(false);
+  const [showChart, setShowChart] = React.useState(false);
 
   const stats = React.useMemo(() =>
     DataProcessor.calculateTeacherStats(students, teachers),
@@ -1302,6 +1307,9 @@ function TeacherScoreReport() {
       <div className="report-actions">
         <div></div>
         <div style={{display:'flex', gap:'12px'}}>
+          <button className="btn btn-chart" style={{background: '#8b5cf6', color: '#fff'}} onClick={() => setShowChart(true)}>
+            📈 Xem biểu đồ
+          </button>
           <button className="btn btn-export-pdf" onClick={handleExportPdf} disabled={exporting}>
             {exporting ? <><span className="spinner"></span> Đang xuất...</> : <>📄 Xuất PDF</>}
           </button>
@@ -1396,6 +1404,37 @@ function TeacherScoreReport() {
           {reporterName && <div>Người báo cáo: <strong style={{color:'var(--text-primary)'}}>{reporterName}</strong></div>}
         </div>
       </div>
+      {showChart && (() => {
+        const labels = [];
+        const trenTBData = [];
+        const duoiTBData = [];
+        const bgColorsTren = [];
+        const bgColorsDuoi = [];
+        const colorMap = {
+          'TOÁN': '#10b981', // Green
+          'VĂN': '#3b82f6',  // Blue
+          'ANH': '#8b5cf6'   // Purple
+        };
+        ['TOÁN', 'VĂN', 'ANH'].forEach(subject => {
+          if (stats[subject]) {
+            stats[subject].forEach(r => {
+              labels.push(r.name + ' (' + subject + ')');
+              trenTBData.push(r.trenTBPct);
+              duoiTBData.push(r.duoiTBPct);
+              bgColorsTren.push(colorMap[subject] || '#10b981');
+              bgColorsDuoi.push('#ef4444');
+            });
+          }
+        });
+        const data = { 
+          labels, 
+          datasets: [
+            { label: '% Trên TB', data: trenTBData, backgroundColor: bgColorsTren }, 
+            { label: '% Dưới TB', data: duoiTBData, backgroundColor: bgColorsDuoi }
+          ] 
+        };
+        return <ChartModal onClose={() => setShowChart(false)} title="Tỉ lệ Trên/Dưới TB theo Giáo viên" chartType="bar" data={data} />;
+      })()}
     </div>
   );
 }
@@ -1406,6 +1445,7 @@ function TeacherScoreReport() {
 function Total3SubjectsReport() {
   const { students, schoolName, schoolYear, reporterName } = useData();
   const [exporting, setExporting] = React.useState(false);
+  const [showChart, setShowChart] = React.useState(false);
 
   const stats = React.useMemo(() => DataProcessor.calculateTotal3SubjectsStats(students), [students]);
   const fmtPct = (n) => n.toFixed(1).replace('.', ',') + '%';
@@ -1445,6 +1485,9 @@ function Total3SubjectsReport() {
       <div className="report-actions">
         <div></div>
         <div style={{display:'flex', gap:'12px'}}>
+          <button className="btn btn-chart" style={{background: '#8b5cf6', color: '#fff'}} onClick={() => setShowChart(true)}>
+            📈 Xem biểu đồ
+          </button>
           <button className="btn btn-export-pdf" onClick={handleExportPdf} disabled={exporting}>
             {exporting ? <><span className="spinner"></span> Đang xuất...</> : <>📄 Xuất PDF</>}
           </button>
@@ -1520,6 +1563,19 @@ function Total3SubjectsReport() {
           {reporterName && <div>Người báo cáo: <strong style={{color:'var(--text-primary)'}}>{reporterName}</strong></div>}
         </div>
       </div>
+      {showChart && (() => {
+        const labels = stats.map(s => s.lop);
+        const data = {
+          labels,
+          datasets: [
+            { label: '< 17', data: stats.map(s => s.duoi17Pct), backgroundColor: '#ef4444' },
+            { label: '17 - 19.75', data: stats.map(s => s.tu17den19_75Pct), backgroundColor: '#f59e0b' },
+            { label: '>= 20', data: stats.map(s => s.tren20Pct), backgroundColor: '#10b981' }
+          ]
+        };
+        const options = { scales: { x: { stacked: true, ticks: { color: 'var(--text-primary)' }, grid: { color: 'rgba(128,128,128,0.2)' } }, y: { stacked: true, ticks: { color: 'var(--text-primary)' }, grid: { color: 'rgba(128,128,128,0.2)' } } } };
+        return <ChartModal onClose={() => setShowChart(false)} title="Tỉ lệ Điểm Tổng 3 Môn Theo Lớp" chartType="bar" data={data} options={options} />;
+      })()}
     </div>
   );
 }
@@ -1530,6 +1586,7 @@ function Total3SubjectsReport() {
 function ClassResultReport() {
   const { students, thresholds, thresholdsChuyen, thresholdsTichHop, schoolName, schoolYear, reporterName } = useData();
   const [exporting, setExporting] = React.useState(false);
+  const [showChart, setShowChart] = React.useState(false);
   
   const availableSchools = React.useMemo(() => {
     const schoolSet = new Set();
@@ -1627,6 +1684,9 @@ function ClassResultReport() {
           </div>
         </div>
         <div style={{display:'flex', gap:'12px'}}>
+          <button className="btn btn-chart" style={{background: '#8b5cf6', color: '#fff'}} onClick={() => setShowChart(true)}>
+            📈 Xem biểu đồ
+          </button>
           <button className="btn btn-secondary" onClick={() => setShowModal(true)}>
             ⚙️ Chọn 5 trường
           </button>
@@ -1774,6 +1834,17 @@ function ClassResultReport() {
           {reporterName && <div>Người báo cáo: <strong style={{color:'var(--text-primary)'}}>{reporterName}</strong></div>}
         </div>
       </div>
+      {showChart && (() => {
+        const labels = stats.map(s => s.lop);
+        const data = {
+          labels,
+          datasets: [
+            { label: '% Đậu', data: stats.map(s => s.dauPct), backgroundColor: '#10b981' },
+            { label: '% Rớt', data: stats.map(s => s.rotPct), backgroundColor: '#ef4444' }
+          ]
+        };
+        return <ChartModal onClose={() => setShowChart(false)} title="Tỉ lệ Đậu/Rớt Theo Lớp" chartType="bar" data={data} />;
+      })()}
     </div>
   );
 }
@@ -1784,6 +1855,7 @@ function ClassResultReport() {
 function DetailedSchoolReport() {
   const { students, teachers, thresholds, thresholdsChuyen, thresholdsTichHop, schoolName, schoolYear, reporterName } = useData();
   const [exporting, setExporting] = React.useState(false);
+  const [showChart, setShowChart] = React.useState(false);
 
   // Tổng hợp kết quả thi chi tiết - toàn trường
   // Phân tích theo từng môn, từng lớp
@@ -1871,6 +1943,9 @@ function DetailedSchoolReport() {
       <div className="report-actions">
         <div></div>
         <div style={{display:'flex', gap:'12px'}}>
+          <button className="btn btn-chart" style={{background: '#8b5cf6', color: '#fff'}} onClick={() => setShowChart(true)}>
+            📈 Xem biểu đồ
+          </button>
           <button className="btn btn-export-pdf" onClick={handleExportPdf} disabled={exporting}>
             {exporting ? <><span className="spinner"></span> Đang xuất...</> : <>📄 Xuất PDF</>}
           </button>
@@ -1975,6 +2050,82 @@ function DetailedSchoolReport() {
           {reporterName && <div>Người báo cáo: <strong style={{color:'var(--text-primary)'}}>{reporterName}</strong></div>}
         </div>
       </div>
+      {showChart && (() => {
+        const subjects = ['TOÁN', 'VĂN', 'ANH'];
+        return (
+          <ChartModal onClose={() => setShowChart(false)} title="Thống kê Điểm và ĐTB theo Môn">
+            {subjects.map(subj => {
+              const rows = detailedStats[subj] || [];
+              const labels = rows.map(r => r.lop);
+              const trenTBData = rows.map(r => r.trenTBPct);
+              const dbqData = rows.map(r => r.dbq);
+
+              const colorMap = {
+                'TOÁN': '#10b981', // Green
+                'VĂN': '#3b82f6',  // Blue
+                'ANH': '#8b5cf6'   // Purple
+              };
+              const trenColor = colorMap[subj] || '#10b981';
+              const dtbColor = '#f59e0b'; // Orange
+
+              const data = {
+                labels,
+                datasets: [
+                  {
+                    type: 'bar',
+                    label: '% Trên TB',
+                    data: trenTBData,
+                    backgroundColor: trenColor,
+                    yAxisID: 'y'
+                  },
+                  {
+                    type: 'bar',
+                    label: 'ĐTB',
+                    data: dbqData,
+                    backgroundColor: dtbColor,
+                    yAxisID: 'y1'
+                  }
+                ]
+              };
+
+              const options = {
+                scales: {
+                  x: { ticks: { color: 'var(--text-primary)' }, grid: { color: 'rgba(128,128,128,0.2)' } },
+                  y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    ticks: { color: 'var(--text-primary)' },
+                    grid: { color: 'rgba(128,128,128,0.2)' },
+                    title: { display: true, text: '% Trên TB', color: trenColor },
+                    min: 0,
+                    max: 100
+                  },
+                  y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    ticks: { color: 'var(--text-primary)' },
+                    grid: { drawOnChartArea: false },
+                    title: { display: true, text: 'Điểm Bình Quân', color: dtbColor },
+                    min: 0,
+                    max: 10
+                  }
+                }
+              };
+
+              return (
+                <div key={subj} style={{marginBottom: '40px', flex: '0 0 auto', width: '100%'}}>
+                  <h3 style={{textAlign:'center', color:'var(--text-primary)'}}>Môn {subj}</h3>
+                  <div style={{height: '350px'}}>
+                    <ChartComponent chartType="bar" data={data} options={options} />
+                  </div>
+                </div>
+              );
+            })}
+          </ChartModal>
+        );
+      })()}
     </div>
   );
 }
@@ -2149,6 +2300,7 @@ function PassFailList() {
 function GeneralSummaryReport() {
   const { allStudents, students, thresholds, thresholdsChuyen, thresholdsTichHop, hoanThanhTHCS, setHoanThanhTHCS, tuyenThang, setTuyenThang, schoolName, schoolYear, reporterName } = useData();
   const [exporting, setExporting] = React.useState(false);
+  const [showChart, setShowChart] = React.useState(false);
 
   const stats = React.useMemo(() => {
     // Generate the full pass/fail list based on the new cascade algorithm
@@ -2243,6 +2395,9 @@ function GeneralSummaryReport() {
         </div>
         <div style={{flex: 1}}></div>
         <div style={{display:'flex', gap:'12px'}}>
+          <button className="btn btn-chart" style={{background: '#8b5cf6', color: '#fff'}} onClick={() => setShowChart(true)}>
+            📈 Xem biểu đồ
+          </button>
           <button className="btn btn-export-pdf" onClick={handleExportPdf} disabled={exporting}>
             {exporting ? <><span className="spinner"></span> Đang xuất...</> : <>📄 Xuất PDF</>}
           </button>
@@ -2347,12 +2502,122 @@ function GeneralSummaryReport() {
           {reporterName && <div>Người báo cáo: <strong style={{color:'var(--text-primary)'}}>{reporterName}</strong></div>}
         </div>
       </div>
+      {showChart && (() => {
+        const pieData = {
+          labels: ['Đậu', 'Rớt'],
+          datasets: [{ data: [stats.passCount, stats.failCount], backgroundColor: ['#10b981', '#ef4444'] }]
+        };
+        const pieOptions = {
+          plugins: {
+            datalabels: {
+              color: '#fff',
+              font: { weight: 'bold', size: 16 },
+              formatter: (value) => value
+            }
+          }
+        };
+
+        const barData = {
+          labels: ['Chuyên', 'Tích hợp chuyên', 'Tích hợp thường', 'NV1', 'NV2', 'NV3'],
+          datasets: [{ 
+            label: 'Số lượng HS Đậu',
+            data: [stats.passChuyenCount, stats.passTichHopChuyenCount, stats.passTichHopCount, stats.nv1Count, stats.nv2Count, stats.nv3Count], 
+            backgroundColor: ['#6366f1', '#a855f7', '#ec4899', '#f59e0b', '#3b82f6', '#14b8a6'] 
+          }]
+        };
+        const barOptions = {
+          plugins: {
+            datalabels: {
+              anchor: 'end',
+              align: 'top',
+              color: 'var(--text-primary)',
+              font: { weight: 'bold', size: 14 },
+              formatter: (value) => value > 0 ? value : ''
+            }
+          }
+        };
+
+        return (
+          <ChartModal onClose={() => setShowChart(false)} title="Thống Kê Tổng Hợp Tuyển Sinh">
+            <div style={{display: 'flex', flexDirection: 'column', gap: '40px', paddingBottom: '20px'}}>
+              <div>
+                <h3 style={{textAlign: 'center', color: 'var(--text-primary)'}}>Tỉ lệ Đậu / Rớt</h3>
+                <div style={{height: '300px'}}>
+                  <ChartComponent chartType="pie" data={pieData} options={pieOptions} plugins={[window.ChartDataLabels]} />
+                </div>
+              </div>
+              <div>
+                <h3 style={{textAlign: 'center', color: 'var(--text-primary)'}}>Chi tiết Phân loại Đậu</h3>
+                <div style={{height: '350px', marginTop: '20px'}}>
+                  <ChartComponent chartType="bar" data={barData} options={barOptions} plugins={[window.ChartDataLabels]} />
+                </div>
+              </div>
+            </div>
+          </ChartModal>
+        );
+      })()}
     </div>
   );
 }
 
 // ================================================================
 // 12. APP COMPONENT
+// ================================================================
+// ================================================================
+// 12.5 COMPONENT: CHART MODAL
+// ================================================================
+function ChartComponent({ chartType, data, options, plugins }) {
+  const canvasRef = React.useRef(null);
+  const chartInstance = React.useRef(null);
+
+  React.useEffect(() => {
+    if (canvasRef.current) {
+      if (chartInstance.current) {
+        chartInstance.current.destroy();
+      }
+      const ctx = canvasRef.current.getContext('2d');
+      chartInstance.current = new window.Chart(ctx, {
+        type: chartType,
+        data: data,
+        plugins: plugins || [],
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { color: 'var(--text-primary)' } }
+          },
+          scales: chartType === 'pie' || chartType === 'doughnut' ? {} : {
+            x: { ticks: { color: 'var(--text-primary)' }, grid: { color: 'rgba(128,128,128,0.2)' } },
+            y: { ticks: { color: 'var(--text-primary)' }, grid: { color: 'rgba(128,128,128,0.2)' } }
+          },
+          ...options
+        }
+      });
+    }
+    return () => {
+      if (chartInstance.current) {
+        chartInstance.current.destroy();
+      }
+    };
+  }, [chartType, data, options]);
+
+  return <div style={{width: '100%', height: '100%', position: 'relative'}}><canvas ref={canvasRef}></canvas></div>;
+}
+
+function ChartModal({ onClose, title, chartType, data, options, children }) {
+  return (
+    <div className="modal-overlay" style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+      <div className="modal-content" style={{backgroundColor: 'var(--bg-card)', padding: '24px', borderRadius: '12px', width: '90%', maxWidth: '1000px', height: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', position: 'relative'}}>
+        <button onClick={onClose} style={{position: 'absolute', top: '16px', right: '16px', background: 'transparent', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-primary)', zIndex: 10}}>✕</button>
+        <h2 style={{marginTop: 0, color: 'var(--accent-blue)', borderBottom: '2px solid var(--border-color)', paddingBottom: '12px', flexShrink: 0}}>{title}</h2>
+        <div style={{flex: 1, position: 'relative', width: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: 'auto', paddingRight: '10px'}}>
+          {children ? children : <ChartComponent chartType={chartType} data={data} options={options} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ================================================================
 // 13. COMPONENT: USER GUIDE MODAL
 // ================================================================
