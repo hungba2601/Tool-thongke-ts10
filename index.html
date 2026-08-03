@@ -506,7 +506,7 @@ const DataProcessor = {
       let duoi17 = 0, tu17den19_75 = 0, tren20 = 0;
 
       classStudents.forEach(s => {
-        const score = s.diemToan + s.diemVan + s.diemNgoaiNgu;
+        const score = s.diemToan + s.diemVan + s.diemNgoaiNgu + s.utkk;
         if (score < 17) duoi17++;
         else if (score >= 17 && score <= 19.75) tu17den19_75++;
         else tren20++;
@@ -921,7 +921,7 @@ function DataProvider({ children }) {
   const hasThresholdsChuyen = thresholdsChuyen.length > 0;
   const hasThresholdsTichHop = thresholdsTichHop.length > 0;
   const isDataReady = hasStudents && hasTeachers;
-  const isFullDataReady = hasStudents && hasTeachers && (hasThresholds || hasThresholdsChuyen || hasThresholdsTichHop);
+  const isFullDataReady = hasStudents && hasTeachers && hasThresholds;
 
   const value = {
     allStudents, setAllStudents,
@@ -979,9 +979,9 @@ function Sidebar({ currentPage, onNavigate, isOpen, onClose }) {
 
   const navItems = [
     { id: 'upload', icon: '📤', label: 'Upload Dữ Liệu', section: 'DỮ LIỆU', alwaysEnabled: true },
-    { id: 'teacher-report', icon: '👨‍🏫', label: 'Tổng hợp điểm thi - GV dạy', section: 'BÁO CÁO', enabled: isDataReady },
-    { id: 'detailed-report', icon: '📊', label: 'Thống kê điểm chi tiết Toán - Văn - Anh', section: 'BÁO CÁO', enabled: isFullDataReady },
-    { id: 'total3', icon: '📈', label: 'Tổng điểm 3 môn', section: 'BÁO CÁO', enabled: isDataReady },
+    { id: 'total3', icon: '📈', label: 'Tổng điểm 3 môn + UTKK', section: 'BÁO CÁO', enabled: hasStudents },
+    { id: 'detailed-report', icon: '📊', label: 'Thống kê điểm chi tiết Toán - Văn - Anh', section: 'BÁO CÁO', enabled: hasStudents },
+    { id: 'teacher-report', icon: '👨‍🏫', label: 'Thống kê điểm thi - GV dạy', section: 'BÁO CÁO', enabled: isDataReady },
     { id: 'class-report', icon: '🏫', label: 'Tổng hợp KQ thi - Theo lớp', section: 'BÁO CÁO', enabled: isFullDataReady },
     { id: 'pass-fail', icon: '📋', label: 'Danh sách HS Đậu - Rớt', section: 'BÁO CÁO', enabled: isFullDataReady },
     { id: 'general-summary', icon: '📈', label: 'Thống kê Tổng hợp', section: 'BÁO CÁO', enabled: isFullDataReady },
@@ -1143,6 +1143,10 @@ function UploadSection() {
         <p>Tải lên file Excel dữ liệu để bắt đầu phân tích thống kê tuyển sinh</p>
       </div>
 
+      <div style={{ marginBottom: '16px', padding: '8px 12px', backgroundColor: '#fef2f2', color: '#b91c1c', border: '1px solid #fca5a5', borderRadius: '6px', fontWeight: '600', textAlign: 'center', fontSize: '0.85rem' }}>
+        ⚠️ LƯU Ý: NẾU TRƯỜNG KHÔNG CÓ HS ĐK THI CHUYÊN HOẶC TÍCH HỢP THÌ KHÔNG CẦN UP FILE ĐIỂM CHUẨN CHUYÊN VÀ TÍCH HỢP. CÒN NẾU CÓ MÀ KHÔNG UP LÊN THÌ KẾT QUẢ THỐNG KÊ SẼ KHÔNG CHÍNH XÁC ĐỐI VỚI CÁC MỤC THI CHUYÊN VÀ TÍCH HỢP.
+      </div>
+
       {/* Settings */}
       <div className="settings-bar">
         <div className="setting-group">
@@ -1210,6 +1214,7 @@ function UploadSection() {
           </div>
         ))}
       </div>
+
 
       {/* Quick stats */}
       {students.length > 0 && (
@@ -1290,7 +1295,7 @@ function TeacherScoreReport() {
   return (
     <div className="report-container animate-fade-in">
       <div className="page-header">
-        <h2>👨‍🏫 Tổng hợp điểm thi - Giáo viên dạy</h2>
+        <h2>👨‍🏫 Thống kê điểm thi - Giáo viên dạy</h2>
         <p>Thống kê kết quả thi theo từng giáo viên bộ môn</p>
       </div>
 
@@ -1433,8 +1438,8 @@ function Total3SubjectsReport() {
   return (
     <div className="report-container animate-fade-in">
       <div className="page-header">
-        <h2>📈 Tổng điểm 3 môn</h2>
-        <p>Thống kê số lượng và tỉ lệ học sinh đạt các mức điểm tổng 3 môn (Toán + Văn + Anh)</p>
+        <h2>📈 Tổng điểm 3 môn + UTKK</h2>
+        <p>Thống kê số lượng và tỉ lệ học sinh đạt các mức điểm tổng 3 môn + UTKK (Toán + Văn + Anh + UTKK)</p>
       </div>
 
       <div className="report-actions">
@@ -1452,7 +1457,7 @@ function Total3SubjectsReport() {
       <div className="report-card" id="total3-report-content">
         <div className="report-title-section">
           <div className="report-title-school">{schoolName}</div>
-          <div className="report-title-main">THỐNG KÊ TỔNG ĐIỂM 3 MÔN</div>
+          <div className="report-title-main">THỐNG KÊ TỔNG ĐIỂM 3 MÔN + UTKK</div>
           <div className="report-title-year">NĂM HỌC {schoolYear}</div>
         </div>
         <div className="report-table-wrapper">
@@ -1878,7 +1883,7 @@ function DetailedSchoolReport() {
       <div className="report-card" id="detailed-report-content">
         <div className="report-title-section">
           <div className="report-title-school">{schoolName}</div>
-          <div className="report-title-main">THỐNG KÊ KẾT QUẢ THI CHI TIẾT - TOÀN TRƯỜNG</div>
+          <div className="report-title-main">THỐNG KÊ CHI TIẾT ĐIỂM THI TVA- TOÀN TRƯỜNG</div>
           <div className="report-title-year">NĂM HỌC {schoolYear}</div>
         </div>
 
@@ -2305,18 +2310,18 @@ function GeneralSummaryReport() {
                 <td style={{border: '1px solid #000', textAlign: 'center'}}></td>
               </tr>
               
-              <tr style={{backgroundColor: '#ddebf7', color: '#000'}}>
-                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px'}}>HS ĐẬU NV1</td>
+              <tr style={{backgroundColor: '#fff2cc', color: '#000'}}>
+                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px', paddingLeft: '24px'}}>- HS ĐẬU NV1</td>
                 <td style={{border: '1px solid #000', textAlign: 'center', fontWeight: 'bold'}}>{stats.nv1Count}</td>
                 <td style={{border: '1px solid #000', textAlign: 'center', fontWeight: 'bold'}}>{fmtPct(stats.nv1Count, stats.totalThi)}</td>
               </tr>
-              <tr style={{backgroundColor: '#ddebf7', color: '#000'}}>
-                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px'}}>HS ĐẬU NV2</td>
+              <tr style={{backgroundColor: '#fff2cc', color: '#000'}}>
+                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px', paddingLeft: '24px'}}>- HS ĐẬU NV2</td>
                 <td style={{border: '1px solid #000', textAlign: 'center', fontWeight: 'bold'}}>{stats.nv2Count}</td>
                 <td style={{border: '1px solid #000', textAlign: 'center', fontWeight: 'bold'}}>{fmtPct(stats.nv2Count, stats.totalThi)}</td>
               </tr>
-              <tr style={{backgroundColor: '#ddebf7', color: '#000'}}>
-                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px'}}>HS ĐẬU NV3</td>
+              <tr style={{backgroundColor: '#fff2cc', color: '#000'}}>
+                <td className="text-left" style={{border: '1px solid #000', padding: '8px 12px', paddingLeft: '24px'}}>- HS ĐẬU NV3</td>
                 <td style={{border: '1px solid #000', textAlign: 'center', fontWeight: 'bold'}}>{stats.nv3Count}</td>
                 <td style={{border: '1px solid #000', textAlign: 'center', fontWeight: 'bold'}}>{fmtPct(stats.nv3Count, stats.totalThi)}</td>
               </tr>
