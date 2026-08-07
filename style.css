@@ -730,14 +730,13 @@ body::before {
   font-weight: 700;
 }
 
-.settings-bar input[type="text"],
-.settings-bar input[type="number"],
+.settings-bar input,
 .settings-bar select {
   background: var(--bg-glass);
   border: 1px solid var(--border-glass);
   color: var(--text-primary);
-  padding: 8px 12px;
-  font-size: 0.95rem;
+  padding: 10px 14px;
+  font-size: 1rem;
   font-weight: 600;
   font-family: inherit;
   outline: none;
